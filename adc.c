@@ -42,6 +42,50 @@
 /* USER CODE BEGIN 0 */
 #include "usart.h"
 #include<string.h>
+#include <math.h>/**
+  ******************************************************************************
+  * File Name          : ADC.c
+  * Description        : This file provides code for the configuration
+  *                      of the ADC instances.
+  ******************************************************************************
+  *
+  * COPYRIGHT(c) 2017 STMicroelectronics
+  *
+  * Redistribution and use in source and binary forms, with or without modification,
+  * are permitted provided that the following conditions are met:
+  *   1. Redistributions of source code must retain the above copyright notice,
+  *      this list of conditions and the following disclaimer.
+  *   2. Redistributions in binary form must reproduce the above copyright notice,
+  *      this list of conditions and the following disclaimer in the documentation
+  *      and/or other materials provided with the distribution.
+  *   3. Neither the name of STMicroelectronics nor the names of its contributors
+  *      may be used to endorse or promote products derived from this software
+  *      without specific prior written permission.
+  *
+  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  *
+  ******************************************************************************
+  */
+
+/* Includes ------------------------------------------------------------------*/
+#include "adc.h"
+
+#include "gpio.h"
+#include "dma.h"
+#include "tim.h"
+
+/* USER CODE BEGIN 0 */
+#include "usart.h"
+#include<string.h>
 #include <math.h>
 #include "arm_math.h"
 #include "coeff.h"
@@ -52,7 +96,7 @@
 #define DIS_MAX_VALUE (15000U)
 #define DIS_ANGLE_MAX (360U)
 
-uint32_t adc_converted_value_num; //0»òÕß1
+uint32_t adc_converted_value_num; //0æˆ–è€…1
 ADC_CONVERTED_VALUE  adc_converted_value_0,adc_converted_value_1;
 
 
@@ -83,21 +127,10 @@ uint8_t debug_temp_num=0;
 extern uint16_t restart_num;
 extern uint8_t adc_error_ovr;
 
-#define BUFF_MAX_SIZE       5           //¶ÓÁĞ³¤¶ÈÎª5        
-#define BUFF_MAX_LENGTH     24          //¿í¶ÈÎª24
+#define BUFF_MAX_SIZE       5           //é˜Ÿåˆ—é•¿åº¦ä¸º5        
+#define BUFF_MAX_LENGTH     24          //å®½åº¦ä¸º24
 
-uint8_t cmd_data_buff[100]={
-                    0xEF,0xEF,                                      //Ö¡Í·
-                    0x00,0x05,                                      //×ªËÙ
-                    0x00,                                           //½Ç¶È
-                    0x00,0x01,0x20,
-	                  0x00,0x01,0x20,
-	                  0x00,0x01,0x20,   //£¨¾àÀë+·´ÉäÂÊ£©*6
-                    0x00,0x01,0x20,
-	                  0x00,0x01,0x20,
-	                  0x00,0x01,0x20,
-                    0x00                                            //Ğ£ÑéºÍ
-                };
+
 
 uint8_t queue_data_buff[BUFF_MAX_SIZE][BUFF_MAX_LENGTH];                
 uint8_t out_buff[BUFF_MAX_LENGTH]; 
@@ -110,13 +143,13 @@ uint32_t APD_circle_cnt,APD_high_cnt,APD_low_cnt;
 uint32_t temp_default_value=1798;//1.71V
 uint32_t vapd_pwm_duty=150;//135//200//230;   
 
-uint16_t apd_therm_vol_ad=1000;   //adÖµ  
+uint16_t apd_therm_vol_ad=1000;   //adå€¼  
 int32_t  t_realtime=0;  
-int16_t  temp_threshold=-1000;   //µÍÎÂ²»µ÷µÄãĞÖµ £¬Ä¬ÈÏ-10¶È              
+int16_t  temp_threshold=-1000;   //ä½æ¸©ä¸è°ƒçš„é˜ˆå€¼ ï¼Œé»˜è®¤-10åº¦              
    
 int16_t  DP_num=0;  
 int8_t   temp_num=0;								
-uint16_t apd_bias_vol_ad=0;    //adÖµ             
+uint16_t apd_bias_vol_ad=0;    //adå€¼             
 
 uint16_t distance_realtime=0;
 uint16_t intensity_realtime=0;              
@@ -124,9 +157,9 @@ uint16_t intensity_realtime=0;
 extern volatile uint8_t angle_num,angle_num_max;
 uint8_t angle_num_copy,angle_num_max_copy;    
                 
-int16_t angle_offset=0;   //±ØĞëÊÇ6µÄÕûÊı±¶                
+int16_t angle_offset=0;   //å¿…é¡»æ˜¯6çš„æ•´æ•°å€                
 
-int32_t b0=-1300; //³õÊ¼½Ø¾à£¬-1.5Ã×¡£2019.9.29¸ÄÎª-1.8Ã×¡£
+int32_t b0=-1300; //åˆå§‹æˆªè·ï¼Œ-1.5ç±³ã€‚2019.9.29æ”¹ä¸º-1.8ç±³ã€‚
 int32_t a1=10000,b1=0,a2=10000,b2=0,a3=10000,b3=0,a4=10000,b4=0,thread_12=0,thread_23=0,thread_34=0;  
 
 int32_t a_i=0,b_i=0,a_dc=0,b_dc=0;
@@ -149,7 +182,7 @@ uint16_t distance_intensity_thread=0;
 uint16_t dis_1,dis_2,dis_3,dis_4,dis_5,inte_1,inte_2,inte_3,inte_4,inte_5;
 
 
-//±£´æ¾àÀë²ÎÊı
+//ä¿å­˜è·ç¦»å‚æ•°
 unsigned short dis_cali[31]={
 0,
 9,
@@ -219,7 +252,7 @@ unsigned short dis_standard[31]={
 
 };
 
-//±£´æAPDµÄÎÂ¶È²ÎÊı
+//ä¿å­˜APDçš„æ¸©åº¦å‚æ•°
 unsigned short temp_ad[100]={
 3604,
 3579,
@@ -354,11 +387,11 @@ ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
                 
                 
-#define debug               0   //0×ª£¬1ÇúÏß
-#define debug_send_distance 0   //1Ê¹ÄÜ¾²Ö¹±¨¾àÀë
+#define debug               0   //0è½¬ï¼Œ1æ›²çº¿
+#define debug_send_distance 0   //1ä½¿èƒ½é™æ­¢æŠ¥è·ç¦»
 
-uint8_t temp_cali_enable=1;     //Ê¹ÄÜÎÂ¶ÈĞ£×¼¹¦ÄÜ   
-uint8_t dis_offset_enable=1;    //Ê¹ÄÜ¾àÀë²¹³¥¹¦ÄÜ
+uint8_t temp_cali_enable=1;     //ä½¿èƒ½æ¸©åº¦æ ¡å‡†åŠŸèƒ½   
+uint8_t dis_offset_enable=1;    //ä½¿èƒ½è·ç¦»è¡¥å¿åŠŸèƒ½
 
 
 /* ADC1 init function */
@@ -369,7 +402,7 @@ void MX_ADC1_Init(void)
     /**Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
     */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2; //²ÉÑùÆµÂÊ¸ÄÎª1.4MHz£¬12+3=15clock £¬84M/4/15=1.4M
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2; //é‡‡æ ·é¢‘ç‡æ”¹ä¸º1.4MHzï¼Œ12+3=15clock ï¼Œ84M/4/15=1.4M
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = ENABLE;
   hadc1.Init.ContinuousConvMode = ENABLE;
@@ -394,16 +427,16 @@ void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  sample_channel=SIGNAL_CHN;    //²É¼¯¾àÀëĞÅºÅ
+  sample_channel=SIGNAL_CHN;    //é‡‡é›†è·ç¦»ä¿¡å·
  
 }
 
-//ÉèÖÃADCµÄ²É¼¯Í¨µÀ
+//è®¾ç½®ADCçš„é‡‡é›†é€šé“
 void ADC1_SetChannel(uint8_t chn)
 {
     ADC_ChannelConfTypeDef sConfig;
     
-    if(chn==TEMP_CHN)   //²É¼¯ÎÂ¶ÈÊı¾İ
+    if(chn==TEMP_CHN)   //é‡‡é›†æ¸©åº¦æ•°æ®
     {    
         /**Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
         */
@@ -414,7 +447,7 @@ void ADC1_SetChannel(uint8_t chn)
       {
         Error_Handler();
       }
-      sample_channel=TEMP_CHN;    //²É¼¯ÎÂ¶È
+      sample_channel=TEMP_CHN;    //é‡‡é›†æ¸©åº¦
     }    
     else if(chn==SIGNAL_CHN)
     {
@@ -427,7 +460,7 @@ void ADC1_SetChannel(uint8_t chn)
       {
         Error_Handler();
       }
-      sample_channel=SIGNAL_CHN;    //²É¼¯¾àÀëĞÅºÅ
+      sample_channel=SIGNAL_CHN;    //é‡‡é›†è·ç¦»ä¿¡å·
     }
 }    
 
@@ -512,24 +545,24 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* adcHandle)
 
 /* USER CODE BEGIN 1 */
 
-//»Øµ÷º¯Êı
+//å›è°ƒå‡½æ•°
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc)
 {
-//    hadc1.Instance->CR2 &= ~ADC_CR2_CONT;   //Í£Ö¹ADC µÄÁ¬Ğø×ª»»
+//    hadc1.Instance->CR2 &= ~ADC_CR2_CONT;   //åœæ­¢ADC çš„è¿ç»­è½¬æ¢
 //    //HAL_ADC_Stop(&hadc1);
 //    adc_half_cplt_flag=1;
 }  
-//»Øµ÷º¯Êı  Ö»´«µİ±êÖ¾£¬²»¶ÁÊı¾İ
+//å›è°ƒå‡½æ•°  åªä¼ é€’æ ‡å¿—ï¼Œä¸è¯»æ•°æ®
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
 //    uint32_t i=0;
     
     if(sample_channel==SIGNAL_CHN)
     {
-        adc_cplt_flag=1;    //Ã¿´Î¶¼Òª¼ÆËã¾àÀë£¬Èç¹û±¾´Î²É¼¯µÄÊÇÆäËüÍ¨µÀ£¬ÔòÖ±½ÓÓÃÉÏ´ÎµÄÊı¾İ¼ÆËã¾àÀë
+        adc_cplt_flag=1;    //æ¯æ¬¡éƒ½è¦è®¡ç®—è·ç¦»ï¼Œå¦‚æœæœ¬æ¬¡é‡‡é›†çš„æ˜¯å…¶å®ƒé€šé“ï¼Œåˆ™ç›´æ¥ç”¨ä¸Šæ¬¡çš„æ•°æ®è®¡ç®—è·ç¦»
         
-        //²ÉÑù½áÊøÊÇ¸ßµçÆ½£¬ÒâÎ¶×Å´¥·¢ÊÇÉÏÉıÑØ£¬´ËÊ±Êı¾İÓĞĞ§¡£
-        //²ÉÑù½áÊøÊÇµÍµçÆ½£¬ÒâÎ¶×Å´¥·¢ÊÇ¡°ÏÂ½µÑØ¡±£¬´ËÊ±Êı¾İÎŞĞ§¡£
+        //é‡‡æ ·ç»“æŸæ˜¯é«˜ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯ä¸Šå‡æ²¿ï¼Œæ­¤æ—¶æ•°æ®æœ‰æ•ˆã€‚
+        //é‡‡æ ·ç»“æŸæ˜¯ä½ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯â€œä¸‹é™æ²¿â€ï¼Œæ­¤æ—¶æ•°æ®æ— æ•ˆã€‚
         if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_3))
         {
             adc_valid_flag=1;
@@ -565,9 +598,9 @@ void DelayUS(uint32_t n)
     }
 } 
 
-//ÖÊĞÄ¼ÆËã¾àÀë,Ô¼200us
-//3¸öÖÜÆÚÊÇ480us£¬²»ÄÜ³¬¹ıÕâ¸öÊ±¼ä
-//Ëã·¨Ô­Ôò£º¿ÉÒÔÉÙ±¨£¬²»ÄÜ´í±¨
+//è´¨å¿ƒè®¡ç®—è·ç¦»,çº¦200us
+//3ä¸ªå‘¨æœŸæ˜¯480usï¼Œä¸èƒ½è¶…è¿‡è¿™ä¸ªæ—¶é—´
+//ç®—æ³•åŸåˆ™ï¼šå¯ä»¥å°‘æŠ¥ï¼Œä¸èƒ½é”™æŠ¥
 static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *delta,uint16_t *d_current)
 {
 //    uint32_t i,j;
@@ -584,13 +617,13 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
     
 //    DOT dot1,dot2;
 
-    duty=numSamples/2;         //²ÉÑùµãÊıÎª2¸öÖÜÆÚ
+    duty=numSamples/2;         //é‡‡æ ·ç‚¹æ•°ä¸º2ä¸ªå‘¨æœŸ
     /*------------------------------------------------------- */  
-    //ÔÚÁ½¸öÖÜÆÚÄÚ£¬ËÑË÷·åµÄÎ»ÖÃ£¬ĞèÒª¿¼ÂÇ¿ÉÄÜÓĞ¶à¸ö·å
+    //åœ¨ä¸¤ä¸ªå‘¨æœŸå†…ï¼Œæœç´¢å³°çš„ä½ç½®ï¼Œéœ€è¦è€ƒè™‘å¯èƒ½æœ‰å¤šä¸ªå³°
     max=0;
     min=4096;
     max_pos=0;
-    for(i=5;i<duty;i+=4)     //´ÓµÚÒ»¸öµã¿ªÊ¼£¬Ìø¹ıÓĞÊ±»áÒì³£µÄµÚ0¸öµã
+    for(i=5;i<duty;i+=4)     //ä»ç¬¬ä¸€ä¸ªç‚¹å¼€å§‹ï¼Œè·³è¿‡æœ‰æ—¶ä¼šå¼‚å¸¸çš„ç¬¬0ä¸ªç‚¹
     {
         if(data[i]>max)
         {
@@ -615,7 +648,7 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
     min_thre_2_nmax=0;
     for(i=5;i<duty;i+=2)
     {
-        //ÕÒ¼«´óÖµ
+        //æ‰¾æå¤§å€¼
         if(data[i]>amp_thread)
         {
             if(data[i]>max)
@@ -636,7 +669,7 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
                 }
             }            
         }
-        //ÕÒÁ¬ĞøµãÊı£¬Êı¾İÔÚmin ~ amp_thread_2 Ö®¼äµÄÁ¬ĞøµãÊıÒª´óÓÚ50
+        //æ‰¾è¿ç»­ç‚¹æ•°ï¼Œæ•°æ®åœ¨min ~ amp_thread_2 ä¹‹é—´çš„è¿ç»­ç‚¹æ•°è¦å¤§äº50
         if(data[i]<amp_thread_2)
         {    
             min_thre_2_n++;
@@ -662,14 +695,9 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
 //        return (DIS_MAX_VALUE);
 //    }
     
-    if(max_n>2)     //Ã¿¸öÖÜÆÚ×î¶à2¸ö·å£¬³¬¹ıÖ±½Ó·µ»Ø×î´ó¾àÀë
-    {
-        *delta=0;
-        *d_current=0;
-        return (DIS_MAX_VALUE);
-    }    
+  
     
-    //Êµ¼Ê¿ÉÄÜµÄ·å¸öÊı£¬1¡¢2¡¢3¡¢4£»»¹ĞèÒªÅĞ¶Ï·åÔÚÁ½¸öÖÜÆÚÄÚµÄ·Ö²¼Çé¿ö
+    //å®é™…å¯èƒ½çš„å³°ä¸ªæ•°ï¼Œ1ã€2ã€3ã€4ï¼›è¿˜éœ€è¦åˆ¤æ–­å³°åœ¨ä¸¤ä¸ªå‘¨æœŸå†…çš„åˆ†å¸ƒæƒ…å†µ
     if((max_pos<10)||(max_pos>(duty-10)))
     {
         *delta=0;
@@ -677,7 +705,7 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
         return (DIS_MAX_VALUE);
     }    
 
-    //Ç°ºó¸÷Ô¤Áô60¸öµã£¬½ØÈ¡
+    //å‰åå„é¢„ç•™60ä¸ªç‚¹ï¼Œæˆªå–
     if(max_pos<=60)
     {
         low_thre=0;
@@ -701,9 +729,9 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
     min=4095;
     for(i=low_thre;i<high_thre;i++)
     {
-        data[i]=(data[i]+data[i+duty])>>1;      //Á½¸öÖÜÆÚÀÛ¼ÓÆ½¾ù
-        data[i]=(data[i]+data[i+1])>>1;         //Á½µãÆ½»¬
-        if(data[i]>max)                         //ÔÚ½ØÈ¡µÄÊı¾İ¶ÎÄÚÔÙÖØĞÂÕÒ×î´óÖµºÍ×îĞ¡Öµ
+        data[i]=(data[i]+data[i+duty])>>1;      //ä¸¤ä¸ªå‘¨æœŸç´¯åŠ å¹³å‡
+        data[i]=(data[i]+data[i+1])>>1;         //ä¸¤ç‚¹å¹³æ»‘
+        if(data[i]>max)                         //åœ¨æˆªå–çš„æ•°æ®æ®µå†…å†é‡æ–°æ‰¾æœ€å¤§å€¼å’Œæœ€å°å€¼
         {
             max=data[i];
             max_pos=i;
@@ -713,7 +741,7 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
             min=data[i];
         }
     }
-//    //minÒª´óÓÚÁ½¸ö¶ËµãÖµµÄ×î´óÖµ£¬±ÜÃâ³öÏÖ·å×óÓÒÁ½±ß²»¶Ô³ÆµÄÇé¿ö
+//    //minè¦å¤§äºä¸¤ä¸ªç«¯ç‚¹å€¼çš„æœ€å¤§å€¼ï¼Œé¿å…å‡ºç°å³°å·¦å³ä¸¤è¾¹ä¸å¯¹ç§°çš„æƒ…å†µ
 //    if(data[low_thre]>min)
 //    {
 //        min=data[low_thre];
@@ -723,7 +751,7 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
 //        min=data[high_thre];
 //    } 
 /*-----------------------------------------------------------------*/ 
-//    //¼ÆËãÖ±Á÷Á¿
+//    //è®¡ç®—ç›´æµé‡
 //    j=0;
 //    sum1=0;
 //    for(i=2;i<low_thre;i++)
@@ -738,17 +766,17 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
 //    }
 //    *d_current=sum1/j;
 /*------------------------------------------------------- */  
-    if((max>min)&&(max-min<20))   //·å·åÖµĞ¡ÓÚ100 £¬Ö±½Ó·µ»Ø×î´ó¾àÀë¡£
+    if((max>min)&&(max-min<20))   //å³°å³°å€¼å°äº100 ï¼Œç›´æ¥è¿”å›æœ€å¤§è·ç¦»ã€‚
     {      
         *delta=0;
         *d_current=0;
         return (DIS_MAX_VALUE);
     }
 /*-----------------------------------------------------------------*/
-    //ĞÅºÅ½ØÈ¡
+    //ä¿¡å·æˆªå–
     amp_thread_3=max-(max-min)*50/100;
     
-    //amp_thread_3Òª´óÓÚÁ½¸ö¶ËµãÖµµÄ×î´óÖµ£¬±ÜÃâ³öÏÖ·å×óÓÒÁ½±ß²»¶Ô³ÆµÄÇé¿ö
+    //amp_thread_3è¦å¤§äºä¸¤ä¸ªç«¯ç‚¹å€¼çš„æœ€å¤§å€¼ï¼Œé¿å…å‡ºç°å³°å·¦å³ä¸¤è¾¹ä¸å¯¹ç§°çš„æƒ…å†µ
     if(data[low_thre]>amp_thread_3)
     {
         amp_thread_3=data[low_thre];
@@ -758,7 +786,7 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
         amp_thread_3=data[high_thre];
     }
     
-    //ÖÊĞÄ  50us
+    //è´¨å¿ƒ  50us
     start=0;
     end=0;
     sum1=0;
@@ -780,23 +808,23 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
             }    
         }         
     }
-    //ÅĞ¶Ï¿í¶È£¬ÏŞÖÆÔÚ60¸öµã
+    //åˆ¤æ–­å®½åº¦ï¼Œé™åˆ¶åœ¨60ä¸ªç‚¹
 //    if((end-start)>60)  
 //    {
 //        *delta=0;
 //        *d_current=0;
 //        return (DIS_MAX_VALUE);
 //    }    
-    pos=(sum1*1000)/sum2; //¼ÆËã¾àÀë  
+    pos=(sum1*1000)/sum2; //è®¡ç®—è·ç¦»  
     pos=(int64_t)pos*15345/duty/1000;      
 
     
-    //Ç¿¶ÈÑ¹Ëõ
+    //å¼ºåº¦å‹ç¼©
     //*delta=sum2/300;  
     *delta=sum2/100;  //50
     
     /*-----------------------------------------------------------------*/ 
-    //Ç¿¶È¡¢¾àÀëĞŞÕı
+    //å¼ºåº¦ã€è·ç¦»ä¿®æ­£
     if((*delta)<255)
     {    
         //pos=pos+((*d_current+a_t*((int32_t)apd_therm_vol_ad-t0)/10000-1100)*a_dc+b_dc+50)/10000+((*delta)*a_i+b_i+50)/100;
@@ -811,18 +839,18 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
     }
     
     
-    //ÎÂ¶ÈĞŞÕı 2019.3.21
+    //æ¸©åº¦ä¿®æ­£ 2019.3.21
     pos=pos+a_t*((int32_t)apd_therm_vol_ad)/10000;
     
 /*-----------------------------------------------------------------*/
-    //Ç¿¶È·¶Î§ÏŞÖÆ
+    //å¼ºåº¦èŒƒå›´é™åˆ¶
     if(*delta>255)
     {
         *delta=255;
     }   
 /*-----------------------------------------------------------------*/    
     pos_pre=pos;
-    //¾àÀë²¹³¥£¬³ËÒÔĞ±ÂÊ£¬¼ÓÉÏ½Ø¾à
+    //è·ç¦»è¡¥å¿ï¼Œä¹˜ä»¥æ–œç‡ï¼ŒåŠ ä¸Šæˆªè·
     if(dis_offset_enable)
     {    
         if(pos_pre>(thread_12*10))
@@ -843,7 +871,7 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
         }    
     }
     
-    pos+=b0;        //¼ÓÉÏ³õÊ¼½Ø¾à
+    pos+=b0;        //åŠ ä¸Šåˆå§‹æˆªè·
     
     if((pos<0)||(pos>DIS_MAX_VALUE))
     {
@@ -854,7 +882,7 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
     
     
     
-//¸ß·´ĞŞÕı    
+//é«˜åä¿®æ­£    
 //    if((pos>500)&&(pos<1000))
 //    {
 //        if(*delta>200)
@@ -877,7 +905,7 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
         pos=DIS_MAX_VALUE;
     } 
     
-    //¾àÀëÇ¿¶ÈÏŞÖÆ 
+    //è·ç¦»å¼ºåº¦é™åˆ¶ 
     if((pos<dis_1)&&(pos>=dis_2))
     {
         if(*delta<inte_1)
@@ -938,10 +966,10 @@ static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	: 
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 
@@ -950,21 +978,21 @@ int16_t dp_out_value;
 maxmin_t  user_maxmin;
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	: user_maxmin.min   0Îª×îĞ¡
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	: user_maxmin.min   0ä¸ºæœ€å°
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 void Save_Maxmin_Min(uint16_t distance_realtime)
 {
 	uint16_t data_buff[MAXMIN_SIZE+1],temp;
 	uint8_t i,j;
-	//½«×îĞ¡Öµ¸´ÖÆµ½maxminÊıÖµ0~9 ´¦   ×îĞÂÖµ¸´ÖÆµ½10
+	//å°†æœ€å°å€¼å¤åˆ¶åˆ°maxminæ•°å€¼0~9 å¤„   æœ€æ–°å€¼å¤åˆ¶åˆ°10
 	memcpy(data_buff,&user_maxmin.min[0],20);
 	data_buff[MAXMIN_SIZE]=distance_realtime;
 	
-   //Ã°ÅİÅÅĞò 0~10   0Îª×îĞ¡ 
+   //å†’æ³¡æ’åº 0~10   0ä¸ºæœ€å° 
 	for(j=0;j<10;j++)
 	{
 		for(i=0;i<10-j;i++)
@@ -977,26 +1005,26 @@ void Save_Maxmin_Min(uint16_t distance_realtime)
 			}
 		}
 	}
-	//½«1~10Êı¾İ¸´ÖÆµ½ maxminÊıÖµ
+	//å°†1~10æ•°æ®å¤åˆ¶åˆ° maxminæ•°å€¼
 	memcpy(&user_maxmin.min[0],&data_buff[0],20);
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	: user_maxmin.max   0Îª×î´ó
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	: user_maxmin.max   0ä¸ºæœ€å¤§
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 void Save_Maxmin_Max(uint16_t distance_realtime)
 {
 	uint16_t data_buff[MAXMIN_SIZE+1],temp;
 	uint8_t i,j;
-	//½«×îĞ¡Öµ¸´ÖÆµ½maxminÊıÖµ0~9 ´¦   ×îĞÂÖµ¸´ÖÆµ½10
+	//å°†æœ€å°å€¼å¤åˆ¶åˆ°maxminæ•°å€¼0~9 å¤„   æœ€æ–°å€¼å¤åˆ¶åˆ°10
 	memcpy(data_buff,&user_maxmin.max[0],20);
 	data_buff[MAXMIN_SIZE]=distance_realtime;
 	
-   //Ã°ÅİÅÅĞò 0~10   0Îª×î´ó
+   //å†’æ³¡æ’åº 0~10   0ä¸ºæœ€å¤§
 	for(j=0;j<10;j++)
 	{
 		for(i=0;i<10-j;i++)
@@ -1009,27 +1037,27 @@ void Save_Maxmin_Max(uint16_t distance_realtime)
 			}
 		}
 	}
-	//½«1~10Êı¾İ¸´ÖÆµ½ maxminÊıÖµ
+	//å°†1~10æ•°æ®å¤åˆ¶åˆ° maxminæ•°å€¼
 	memcpy(&user_maxmin.max[0],&data_buff[0],20);
 	
 	
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	: 
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
  void Temperature_Coefficient_Find_Maxmin(uint16_t distance_realtime)
 {
-	//²âÁ¿ÖµĞ¡ÓÚ MIN
+	//æµ‹é‡å€¼å°äº MIN
 	if(distance_realtime<user_maxmin.min[MAXMIN_SIZE-1])
 	{
 		Save_Maxmin_Min(distance_realtime);
 	}
-	//²âÁ¿ÖµĞ¡ÓÚ MAX	
+	//æµ‹é‡å€¼å°äº MAX	
 	else if((distance_realtime>user_maxmin.max[MAXMIN_SIZE-1])&&(distance_realtime!=DIS_MAX_VALUE))
 	{
 		Save_Maxmin_Max(distance_realtime);
@@ -1039,10 +1067,10 @@ void Save_Maxmin_Max(uint16_t distance_realtime)
 uint8_t temperature_coefficient_state=PREHEAT_STATE;
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	: 
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 
@@ -1059,7 +1087,7 @@ void Calc_Thershold_Handle(void)
 	uint8_t i;
 	max=0;
 	min=0;
-	//ÌáÈ¡max  minºó5×éÊı¾İ
+	//æå–max  minå5ç»„æ•°æ®
 	for(i=5;i<=9;i++)
 		max += user_maxmin.max[i];
 	max=max/5;
@@ -1076,16 +1104,16 @@ void Calc_Thershold_Handle(void)
 	
 	test_max_data=max;
 	test_min_data=min;
-	//ÇĞ»»ÔËĞĞÄ£Ê½
+	//åˆ‡æ¢è¿è¡Œæ¨¡å¼
 	temperature_coefficient_state=SAVE_DATA_STATE;
 	temperature_coefficient_save_num=0;
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	: 
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 temperature_coefficient_group_t user_temperature_coefficient;
@@ -1095,9 +1123,9 @@ void Save_Data_Handle(uint16_t distance_realtime)
 	uint8_t i;
 	int8_t  temperature_value; 
 	int8_t  save_handle_flag_buff[10];
-	/* ÇåÁã */	
+	/* æ¸…é›¶ */	
 	memset(save_handle_flag_buff,0,sizeof(save_handle_flag_buff));
-	/*¸ù¾İ²âÁ¿ÖµÆ¥ÅäãĞÖµ*/	
+	/*æ ¹æ®æµ‹é‡å€¼åŒ¹é…é˜ˆå€¼*/	
 	for(i=0;i<10;i++)
 	{
 		if(thershold_buff[i]>3)
@@ -1107,9 +1135,9 @@ void Save_Data_Handle(uint16_t distance_realtime)
 				save_handle_flag_buff[i]=1;
 		}
 	}
-	/* ÌáÈ¡ÎÂ¶È*/
+	/* æå–æ¸©åº¦*/
 	temperature_value=(temp_num+15);
-	/* ½«Êı¾İ±£´æµ½ËùÓĞ·ûºÏãĞÖµµ÷½ÚµÄ»º´æÖĞ   */	
+	/* å°†æ•°æ®ä¿å­˜åˆ°æ‰€æœ‰ç¬¦åˆé˜ˆå€¼è°ƒèŠ‚çš„ç¼“å­˜ä¸­   */	
 	for(i=0;i<10;i++)
 	{
 		if((save_handle_flag_buff[i]==1)&&(temperature_value>=0)&&(temperature_value<70))
@@ -1120,21 +1148,21 @@ void Save_Data_Handle(uint16_t distance_realtime)
 			user_temperature_coefficient.group[i].data[temperature_value].temp=temp_num;
 		}
 	}
-	/* ±£´æ²ÎÊıµ½FLASH */
+	/* ä¿å­˜å‚æ•°åˆ°FLASH */
 	if(temperature_coefficient_save_flag==1)
 	{
 		temperature_coefficient_save_flag=0;
 		Temperature_Coefficient_Flash_Write(); 
-		/*¶ÁÈ¡²ÎÊıÓÃÓÚ²âÊÔ¹Û²ì*/
+		/*è¯»å–å‚æ•°ç”¨äºæµ‹è¯•è§‚å¯Ÿ*/
 		Temperature_Coefficient_Flash_Read() ;
 	}
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	: 
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 uint8_t temperature_coefficient_handle_flag=0;
@@ -1144,18 +1172,18 @@ void Save_Temperature_Coefficient_Handle(uint16_t distance_realtime)
 	debug_temp_num++;
 	switch(temperature_coefficient_state)
 	{
-		/* Ô¤ÈÈ ²»½øĞĞ²Ù×÷*/
+		/* é¢„çƒ­ ä¸è¿›è¡Œæ“ä½œ*/
 		case PREHEAT_STATE:
 		break;
-		/* Ñ°ÕÒ×î´ó×îĞ¡Öµ */
+		/* å¯»æ‰¾æœ€å¤§æœ€å°å€¼ */
 		case FIND_MIN_MAX_STATE:
 			Temperature_Coefficient_Find_Maxmin(distance_realtime);
 		break;
-		/* ¼ÆËã10×éãĞÖµ*/
+		/* è®¡ç®—10ç»„é˜ˆå€¼*/
 		case CALC_THRESHOLD_STATE:
 			Calc_Thershold_Handle();
 		break;
-		/*  ±£´æÊı¾İ*/
+		/*  ä¿å­˜æ•°æ®*/
 		case SAVE_DATA_STATE:
 			Save_Data_Handle(distance_realtime);		
 		break;
@@ -1165,7 +1193,7 @@ void Save_Temperature_Coefficient_Handle(uint16_t distance_realtime)
 }
 	
 uint16_t angle_max=0;
-//´æ´¢¾àÀëµÄ¼ÆËã½á¹û
+//å­˜å‚¨è·ç¦»çš„è®¡ç®—ç»“æœ
 void GetPosition(void)
 {
 //    uint32_t i=0,j=0;
@@ -1193,13 +1221,13 @@ void GetPosition(void)
             adc_converted_value_num=0;
         }    
         pdest_buff=adc_buff_add;
-        //²ÉÑù½áÊøÊÇ¸ßµçÆ½£¬ÒâÎ¶×Å´¥·¢ÊÇÉÏÉıÑØ£¬´ËÊ±Êı¾İÓĞĞ§¡£
-        //²ÉÑù½áÊøÊÇµÍµçÆ½£¬ÒâÎ¶×Å´¥·¢ÊÇ¡°ÏÂ½µÑØ¡±£¬´ËÊ±Êı¾İÎŞĞ§¡£
+        //é‡‡æ ·ç»“æŸæ˜¯é«˜ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯ä¸Šå‡æ²¿ï¼Œæ­¤æ—¶æ•°æ®æœ‰æ•ˆã€‚
+        //é‡‡æ ·ç»“æŸæ˜¯ä½ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯â€œä¸‹é™æ²¿â€ï¼Œæ­¤æ—¶æ•°æ®æ— æ•ˆã€‚
         if(adc_valid_flag)
         {    
             for(i=0;i<IF_MAX;i++)
             {
-                *pdest_buff++=*psrc_buff++;    //¸´ÖÆÊı¾İ
+                *pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
             }
         }
         
@@ -1208,21 +1236,21 @@ void GetPosition(void)
             temp=angle_standard[angle_trig_cnt_save_copy]+(angle_num_max_copy-angle_num_copy)+1;
             temp-=8;
 			current_angle=temp;
-            //½Ç¶ÈÈ¡Öµ1~360
+            //è§’åº¦å–å€¼1~360
             dis_buff[temp].trig_angle=temp;
             angle_max=temp;
-            if(((angle_trig_cnt_save_copy==29)&&(angle_num_copy==0)) || ((angle_trig_cnt_save_copy==0)&&(angle_num_copy>=5)))  //ÒÑ¾­×ßÍê×îºóÒ»¸ö³İµÄ×îºóÒ»¸ö½Ç¶È£¬½«½Ç¶È×î´óÖµÉèÎª360¶È 
+            if(((angle_trig_cnt_save_copy==29)&&(angle_num_copy==0)) || ((angle_trig_cnt_save_copy==0)&&(angle_num_copy>=5)))  //å·²ç»èµ°å®Œæœ€åä¸€ä¸ªé½¿çš„æœ€åä¸€ä¸ªè§’åº¦ï¼Œå°†è§’åº¦æœ€å¤§å€¼è®¾ä¸º360åº¦ 
             {
                 angle_max=360;
             }
     
 			distance_realtime=Calculate_Position(IF_MAX,adc_buff_add,&delta,&direct_current);
 			dis_buff[temp].dis=distance_realtime; 
-			/*¾àÀëÎªÓĞĞ§ÖµÊ± ÖØÆô¼ÆÊıÆ÷ÇåÁã*/
+			/*è·ç¦»ä¸ºæœ‰æ•ˆå€¼æ—¶ é‡å¯è®¡æ•°å™¨æ¸…é›¶*/
 			if(distance_realtime>0)
 				restart_num=0;
 			
-			/* µ±¼ÆËãµ½½Ç¶È1Ê± ±£´æÎÂÑ­Êı¾İ */
+			/* å½“è®¡ç®—åˆ°è§’åº¦1æ—¶ ä¿å­˜æ¸©å¾ªæ•°æ® */
 			if(current_angle==1)
 			{
 				//temperature_coefficient_handle_flag=0;
@@ -1239,9 +1267,9 @@ void GetPosition(void)
 						
             if(work_mode==0x81)
             {    
-                printf("%d;%d;%d;%d\r",dis_buff[temp].dis,dis_buff[temp].intensity,direct_current,t_realtime);   //ºÄÊ±700us
+                printf("%d;%d;%d;%d\r",dis_buff[temp].dis,dis_buff[temp].intensity,direct_current,t_realtime);   //è€—æ—¶700us
             }           
-            GPIOA4_Blink();     //Êä³ö¾àÀëµÄ¼ÆËãÆµÂÊ            
+            GPIOA4_Blink();     //è¾“å‡ºè·ç¦»çš„è®¡ç®—é¢‘ç‡            
         }
     } 
 		
@@ -1249,7 +1277,7 @@ void GetPosition(void)
 
 extern uint32_t apd_duty;
 extern uint16_t temp_user_10;
-//¼ÆËãÃ¿Ò»¶ÈµÄ¾àÀëÊı¾İ£¬Ã¿Âú6¶È·¢ËÍÒ»Ö¡    ·¢ËÍÊı¾İ²ÉÓÃ¶ÈÂö³å·½Ê½
+//è®¡ç®—æ¯ä¸€åº¦çš„è·ç¦»æ•°æ®ï¼Œæ¯æ»¡6åº¦å‘é€ä¸€å¸§    å‘é€æ•°æ®é‡‡ç”¨åº¦è„‰å†²æ–¹å¼
 uint32_t GetDistanceAndAngle(void)
 {
     uint32_t i=0,j=0;
@@ -1267,20 +1295,20 @@ uint32_t GetDistanceAndAngle(void)
 
     for(;angle<=angle_max_copy;)
     {   
-        if((angle>=6)&&((angle%6)==0))       //Ã¿6¶È·¢Ò»´Î
+        if((angle>=6)&&((angle%6)==0))       //æ¯6åº¦å‘ä¸€æ¬¡
         {
             {
                 *p++=0xef;
                 *p++=0xef;
-                //×éÖ¡£¬·¢ËÍ
-                *p++=motor_speed>>8;        //ËÙ¶È
+                //ç»„å¸§ï¼Œå‘é€
+                *p++=motor_speed>>8;        //é€Ÿåº¦
                 *p++=motor_speed;            
-                //¶Ô½Ç¶È½øĞĞĞŞÕı180¶È
+                //å¯¹è§’åº¦è¿›è¡Œä¿®æ­£180åº¦
                 angle_send=angle;
                 angle_send-=240;
                 angle_send-=angle_offset;
-                *p++=(angle-6)/6;;            //½Ç¶È  
-                //²â6´ÎÏàÎ»Êı¾İ£¬¾àÀë+·´ÉäÂÊ 
+                *p++=(angle-6)/6;;            //è§’åº¦  
+                //æµ‹6æ¬¡ç›¸ä½æ•°æ®ï¼Œè·ç¦»+åå°„ç‡ 
                 for(j=1;j<=6;j++)  
                 {
                     temp=angle_send+j;
@@ -1302,24 +1330,24 @@ uint32_t GetDistanceAndAngle(void)
 //						*p++ =  thershold_buff_calc[0]>>8;
 //						*p++ =  thershold_buff_calc[0];
 //						
-//						*p++=debug_temp_num; //´¦Àí¼ÆÊı						
+//						*p++=debug_temp_num; //å¤„ç†è®¡æ•°						
 					}
 					else
 					{
 						if(j==3)
 						{
-							*p++=temp_user_10>>8;   //¾àÀë
+							*p++=temp_user_10>>8;   //è·ç¦»
 							*p++=temp_user_10;
 							
 							*p++=0; 												
 						}
 						else
 						{
-							*p++=dis_buff[temp].dis>>8;   //¾àÀë
+							*p++=dis_buff[temp].dis>>8;   //è·ç¦»
 							*p++=dis_buff[temp].dis;
-							*p++=dis_buff[temp].intensity; //·´ÉäÂÊ
+							*p++=dis_buff[temp].intensity; //åå°„ç‡
 							
-					          ///Çå¿Õ¾àÀëÊı×é
+					          ///æ¸…ç©ºè·ç¦»æ•°ç»„
 							dis_buff[temp].dis=DIS_MAX_VALUE;
 						}
 					}
@@ -1350,7 +1378,7 @@ uint32_t GetDistanceAndAngle(void)
             angle++;
         }    
     }
-    if(angle>360)      //ÒÑ·¢ËÍÍê×îºóÒ»Ö¡
+    if(angle>360)      //å·²å‘é€å®Œæœ€åä¸€å¸§
     {
         angle=1;
 //        i_static=0;
@@ -1382,13 +1410,13 @@ void SendDistanceData(void)
     }
 }    
 
-//¶ÓÁĞ¹ÜÀí
+//é˜Ÿåˆ—ç®¡ç†
 QueueStatus init_queue(void)  
 {  
-    //³õÊ¼»¯¶ÁĞ´Ö¸Õë  
+    //åˆå§‹åŒ–è¯»å†™æŒ‡é’ˆ  
     queue.wp = 0;
     queue.rp = 0;  
-    //³õÊ¼»¯¶ÓÁĞÖĞÔªËØ¸öÊı  
+    //åˆå§‹åŒ–é˜Ÿåˆ—ä¸­å…ƒç´ ä¸ªæ•°  
     queue.queueCnt = 0; // conuter  
     
     return QueueOK;
@@ -1413,17 +1441,17 @@ static QueueStatus inQueue(uint8_t buff[])
     }  
     else   
     {  
-        //±£´æÊı¾İ
+        //ä¿å­˜æ•°æ®
         for(i=0;i<BUFF_MAX_LENGTH;i++)
         {
             queue_data_buff[queue.wp][i]=buff[i];
         }
-        //»Ø×ª  
+        //å›è½¬  
         if (++(queue.wp) == BUFF_MAX_SIZE)  
         {  
             queue.wp = 0;  
         }  
-        //ÔªËØ¸öÊı¼Ó1  
+        //å…ƒç´ ä¸ªæ•°åŠ 1  
         (queue.queueCnt)++;  
     }     
     return QueueOK;  
@@ -1438,28 +1466,28 @@ static QueueStatus outQueue(uint8_t buff[])
     }  
     else 
     {  
-        //¶Á³öÊı¾İ
+        //è¯»å‡ºæ•°æ®
         for(i=0;i<BUFF_MAX_LENGTH;i++)
         {
             buff[i]=queue_data_buff[queue.rp][i];
         }
-        //»Ø×ª  
+        //å›è½¬  
         if (++(queue.rp) == BUFF_MAX_SIZE)  
         {  
             queue.rp = 0;  
         }
-        //ÔªËØ¸öÊı¼õ1 
+        //å…ƒç´ ä¸ªæ•°å‡1 
         (queue.queueCnt)--;
     }     
     return QueueOK;  
 }  
 
-//Æô¶¯ADC
+//å¯åŠ¨ADC
 void ADC1_Start(void)
 {
 //    static uint8_t adc_cycle_cnt=0;
 //    
-//    //6¸öÖÜÆÚÆô¶¯Ò»´Î
+//    //6ä¸ªå‘¨æœŸå¯åŠ¨ä¸€æ¬¡
 //    adc_cycle_cnt++;      
 //    if(adc_cycle_cnt==7)    
 //    {
@@ -1469,7 +1497,7 @@ void ADC1_Start(void)
 //    {
 //            
 ////      HAL_ADC_Stop_DMA(&hadc1); 
-////      HAL_ADC_Start_DMA(&hadc1,adc_converted_value,ADC_DMA_BUFF_LEN);    //Æô¶¯º¯Êı     //IF_MAXÊÇ4¸öÖÜÆÚ  
+////      HAL_ADC_Start_DMA(&hadc1,adc_converted_value,ADC_DMA_BUFF_LEN);    //å¯åŠ¨å‡½æ•°     //IF_MAXæ˜¯4ä¸ªå‘¨æœŸ  
 //      hadc1.Instance->CR2 |= ADC_CR2_CONT;   
 //      hadc1.Instance->CR2 |= (uint32_t)ADC_CR2_SWSTART; 
 //        //HAL_ADC_Start(&hadc1);
@@ -1487,10 +1515,10 @@ int32_t  a_x=167,b_x=19172,c_x=22858;
 int32_t  a1_x=167,b1_x=19172,c1_x=22858;
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	:Ä£Ê½00 ×Ô¶¯µ÷½ÚDPÖµ  Ä£Ê½0x88¸ù¾İÎÂ¶Èµ÷½ÚDP
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	:æ¨¡å¼00 è‡ªåŠ¨è°ƒèŠ‚DPå€¼  æ¨¡å¼0x88æ ¹æ®æ¸©åº¦è°ƒèŠ‚DP
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 int32_t Read_ADC_Calculate_Average_Value(void)
@@ -1513,9 +1541,9 @@ int32_t Read_ADC_Calculate_Average_Value(void)
 	pdest_buff=temp_buff;
 	for(i=0;i<TEMP_SIGNAL_MAX;i++)
 	{
-		*pdest_buff++=*psrc_buff++;    //¸´ÖÆÊı¾İ
+		*pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
 	}
-	//ÇóÆ½¾ù
+	//æ±‚å¹³å‡
 	for(i=100;i<TEMP_SIGNAL_MAX;i++)
 	{
 		sum+=temp_buff[i];
@@ -1525,10 +1553,10 @@ int32_t Read_ADC_Calculate_Average_Value(void)
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	:Í¨¹ı²é±íµÄ·½Ê½»»Ëã³ÉÊµ¼ÊÎÂ¶È
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	:é€šè¿‡æŸ¥è¡¨çš„æ–¹å¼æ¢ç®—æˆå®é™…æ¸©åº¦
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 int32_t Query_Table_Calculate_Temperature(uint16_t vol_ad)
@@ -1536,7 +1564,7 @@ int32_t Query_Table_Calculate_Temperature(uint16_t vol_ad)
 	uint16_t i=0;
 	DOT dot0,dot1,dot2;	
 	int32_t calculate_temperature;
-	/*ÅĞ¶ÏÊä³ö²ÎÊı·¶Î§*/ 
+	/*åˆ¤æ–­è¾“å‡ºå‚æ•°èŒƒå›´*/ 
 	if(vol_ad>=temp_ad[0])
 	{
 			calculate_temperature=-1500;
@@ -1549,7 +1577,7 @@ int32_t Query_Table_Calculate_Temperature(uint16_t vol_ad)
 	{    
 		for(i=0;i<99;i++)
 		{
-			/*²é±í¼ÆËãÊı¾İ*/ 	
+			/*æŸ¥è¡¨è®¡ç®—æ•°æ®*/ 	
 			if((vol_ad<=temp_ad[i])&&(vol_ad>temp_ad[i+1]))
 			{
 				 
@@ -1568,10 +1596,10 @@ int32_t Query_Table_Calculate_Temperature(uint16_t vol_ad)
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	:×Ô¶¯µ÷½ÚDP ÉÏ±¨Êı¾İ Ñ°ÕÒÏµÊıÄ£Ê½
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	:è‡ªåŠ¨è°ƒèŠ‚DP ä¸ŠæŠ¥æ•°æ® å¯»æ‰¾ç³»æ•°æ¨¡å¼
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 void Adjust_DP_Seek_Coefficient(void)
@@ -1579,7 +1607,7 @@ void Adjust_DP_Seek_Coefficient(void)
 	int16_t  delta_dp=0,DPset0=0;	
 	static int8_t dp_cnt=0;	
 	int16_t dp=0;
-	/*Á½¶ÎÄÚ²¿µ÷DPÖ±Ïß*/
+	/*ä¸¤æ®µå†…éƒ¨è°ƒDPç›´çº¿*/
 	if(t_realtime<(t_25*100))
 	{    
 		delta_dp=(t_realtime-(t_25*100))*t_apd_vol_low/10000/100;  
@@ -1589,24 +1617,24 @@ void Adjust_DP_Seek_Coefficient(void)
 		delta_dp=(t_realtime-(t_25*100))*t_apd_vol_high/10000/100; 
 	}    
 	DPset0= (int16_t)dp_value+delta_dp;
-	/*Ã¿5È¦  1Ãë½øÈëÒ»´Îµ÷½Ú¼ÆËã  ¾²Ì¬Ä£Ê½²»ÓÃÅĞ¶ÏÈ¦Êı*/
+	/*æ¯5åœˆ  1ç§’è¿›å…¥ä¸€æ¬¡è°ƒèŠ‚è®¡ç®—  é™æ€æ¨¡å¼ä¸ç”¨åˆ¤æ–­åœˆæ•°*/
 	if((FullCircle_flag>=5)||(work_mode==MODE_STATIC_SET_DP))
 	{
 		FullCircle_flag=0;
-		/*µ÷½Ú10´Îºó ½øÈë10ÃëµÄ±£³Ö½×¶Î*/
+		/*è°ƒèŠ‚10æ¬¡å è¿›å…¥10ç§’çš„ä¿æŒé˜¶æ®µ*/
 		dp_cnt++;
-		if(dp_cnt>=11)  //10S ½×Ìİ 
+		if(dp_cnt>=11)  //10S é˜¶æ¢¯ 
 		{
 			dp_cnt=0;
 			flag_step_dp=1;
 		}
-		/*µ÷½ÚDP Ã¿´Î¼Ó3*/
+		/*è°ƒèŠ‚DP æ¯æ¬¡åŠ 3*/
 		dp = DPset0 + (dp_cnt -5)*3;		
 		if(dp<=0)
 			dp=0;		
 		DP_num = dp;
 		dp_out_value=DP_num;
-		/*ÅĞ¶ÏDPµ÷½ÚÊ¹ÄÜ   µ÷½ÚDPµÄPWM¿ØÖÆ*/
+		/*åˆ¤æ–­DPè°ƒèŠ‚ä½¿èƒ½   è°ƒèŠ‚DPçš„PWMæ§åˆ¶*/
 		if(temp_cali_enable)
 		{
 			if((dp>=1)&&(dp<=900))
@@ -1618,10 +1646,10 @@ void Adjust_DP_Seek_Coefficient(void)
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	:×Ô¶¯µ÷½ÚDP ÉÏ±¨Êı¾İ Ñ°ÕÒÏµÊıÄ£Ê½
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	:è‡ªåŠ¨è°ƒèŠ‚DP ä¸ŠæŠ¥æ•°æ® å¯»æ‰¾ç³»æ•°æ¨¡å¼
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 void Adjust_DP_Static(void)
@@ -1629,7 +1657,7 @@ void Adjust_DP_Static(void)
 	int16_t  delta_dp=0,DPset0=0;	
 	static int8_t dp_cnt=0;	
 	int16_t dp=0;
-	/*Á½¶ÎÄÚ²¿µ÷DPÖ±Ïß*/
+	/*ä¸¤æ®µå†…éƒ¨è°ƒDPç›´çº¿*/
 	if(t_realtime<(t_25*100))
 	{    
 		delta_dp=(t_realtime-(t_25*100))*t_apd_vol_low/10000/100;  
@@ -1639,21 +1667,21 @@ void Adjust_DP_Static(void)
 		delta_dp=(t_realtime-(t_25*100))*t_apd_vol_high/10000/100; 
 	}    
 	DPset0= (int16_t)dp_value+delta_dp;
-	/*Ã¿5È¦  1Ãë½øÈëÒ»´Îµ÷½Ú¼ÆËã  ¾²Ì¬Ä£Ê½²»ÓÃÅĞ¶ÏÈ¦Êı*/
+	/*æ¯5åœˆ  1ç§’è¿›å…¥ä¸€æ¬¡è°ƒèŠ‚è®¡ç®—  é™æ€æ¨¡å¼ä¸ç”¨åˆ¤æ–­åœˆæ•°*/
 	if((FullCircle_flag>=5)||(work_mode==MODE_STATIC_SET_DP))
 	{
 		FullCircle_flag=0;
-		/*µ÷½Ú10´Îºó ½øÈë³Ö½×¶Î*/
+		/*è°ƒèŠ‚10æ¬¡å è¿›å…¥æŒé˜¶æ®µ*/
 
 		if(dp_cnt<=10)
 		{
-			/*µ÷½ÚDP Ã¿´Î¼Ó3*/
+			/*è°ƒèŠ‚DP æ¯æ¬¡åŠ 3*/
 			dp = DPset0 + (dp_cnt -5)*3;
 		}	
 		else
 			dp = DPset0-15 ;
 		dp_cnt++;
-		/*µ÷½Ú10´Î ±£³Ö3´Î*/
+		/*è°ƒèŠ‚10æ¬¡ ä¿æŒ3æ¬¡*/
 		if(dp_cnt>12)
 			dp_cnt=0;
 		
@@ -1661,7 +1689,7 @@ void Adjust_DP_Static(void)
 			dp=0;		
 		DP_num = dp;
 		dp_out_value=DP_num;
-		/*ÅĞ¶ÏDPµ÷½ÚÊ¹ÄÜ   µ÷½ÚDPµÄPWM¿ØÖÆ*/
+		/*åˆ¤æ–­DPè°ƒèŠ‚ä½¿èƒ½   è°ƒèŠ‚DPçš„PWMæ§åˆ¶*/
 		if(temp_cali_enable)
 		{
 			if((dp>=1)&&(dp<=900))
@@ -1673,10 +1701,10 @@ void Adjust_DP_Static(void)
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	:´øÈëabc  a1b1c1¼ÆËãDP ÑéÖ¤ÏµÊı
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	:å¸¦å…¥abc  a1b1c1è®¡ç®—DP éªŒè¯ç³»æ•°
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 void Verification_Coefficient(void)
@@ -1711,27 +1739,27 @@ void Verification_Coefficient(void)
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	: Éú²úÎÂÑ­¹¤ÒÕ¿ØÖÆ ²»Í¬Ä£Ê½½øÈë²»Í¬¹¤×÷×´Ì¬
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	: ç”Ÿäº§æ¸©å¾ªå·¥è‰ºæ§åˆ¶ ä¸åŒæ¨¡å¼è¿›å…¥ä¸åŒå·¥ä½œçŠ¶æ€
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 void Produce_Temperature_Control(void)
 {
-	/*½øÈëµ÷½ÚDPÕÒÏµÊıÄ£Ê½»òÕßÑéÖ¤ÏµÊı*/
+	/*è¿›å…¥è°ƒèŠ‚DPæ‰¾ç³»æ•°æ¨¡å¼æˆ–è€…éªŒè¯ç³»æ•°*/
 	switch(work_mode)
 	{
-		/*ÕÒÏµÊı¶¯Ì¬Ä£Ê½ */
+		/*æ‰¾ç³»æ•°åŠ¨æ€æ¨¡å¼ */
 		case MODE_NORMAL:
 		case MODE_SAVE_DATA:	
 			Adjust_DP_Seek_Coefficient();
 		break;	
-		/*ÕÒÏµÊı¾²Ì¬Ä£Ê½*/		
+		/*æ‰¾ç³»æ•°é™æ€æ¨¡å¼*/		
 		case MODE_STATIC_SET_DP:
 			Adjust_DP_Static();
 		break;
-		/*ÑéÖ¤ÏµÊı¶¯Ì¬Ä£Ê½ ºÍÑéÖ¤ÏµÊı¾²Ì¬Ä£Ê½*/
+		/*éªŒè¯ç³»æ•°åŠ¨æ€æ¨¡å¼ å’ŒéªŒè¯ç³»æ•°é™æ€æ¨¡å¼*/
 		case MODE_VERIFICATION:
 		case MODE_STATIC_ABC:
 			Verification_Coefficient();
@@ -1742,28 +1770,28 @@ void Produce_Temperature_Control(void)
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	:Ä£Ê½00 ×Ô¶¯µ÷½ÚDPÖµ  Ä£Ê½0x88¸ù¾İÎÂ¶Èµ÷½ÚDP
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	:æ¨¡å¼00 è‡ªåŠ¨è°ƒèŠ‚DPå€¼  æ¨¡å¼0x88æ ¹æ®æ¸©åº¦è°ƒèŠ‚DP
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 void VAPD_Temperature_Adjust(void)
 {
 	static int32_t  t_realtime_last=-2000;
-	/*ÅĞ¶ÏDMAÎÂ¶ÈÊı¾İ²ÉÑùÍê³É*/
+	/*åˆ¤æ–­DMAæ¸©åº¦æ•°æ®é‡‡æ ·å®Œæˆ*/
     if(temp_flag)
     {
         temp_flag=0;
-        /*Í£Ö¹ADC*/ 
+        /*åœæ­¢ADC*/ 
         HAL_ADC_Stop(&hadc1);           
-		/*Í¨µÀ»Ö¸´³É²É¼¯ĞÅºÅµÄÍ¨µÀ*/ 
+		/*é€šé“æ¢å¤æˆé‡‡é›†ä¿¡å·çš„é€šé“*/ 
         ADC1_SetChannel(SIGNAL_CHN);           
-        /*¶ÁÈ¡ADCÖµ ²¢¼ÆËãÆ½¾ÖÖµ*/    
+        /*è¯»å–ADCå€¼ å¹¶è®¡ç®—å¹³å±€å€¼*/    
 		apd_therm_vol_ad=Read_ADC_Calculate_Average_Value();
-		/*Í¨¹ı²é±íµÄ·½Ê½»»Ëã³ÉÊµ¼ÊÎÂ¶È */  
+		/*é€šè¿‡æŸ¥è¡¨çš„æ–¹å¼æ¢ç®—æˆå®é™…æ¸©åº¦ */  
 		t_realtime=Query_Table_Calculate_Temperature(apd_therm_vol_ad); 		
-        /*ÅĞ¶ÏÎÂ¶È±ä»¯ ²»ÄÜ³¬¹ı2¡æ */ 
+        /*åˆ¤æ–­æ¸©åº¦å˜åŒ– ä¸èƒ½è¶…è¿‡2â„ƒ */ 
         if(t_realtime_last>(-2000))
         {
             if(fabs((float)(t_realtime-t_realtime_last))>100)
@@ -1776,21 +1804,21 @@ void VAPD_Temperature_Adjust(void)
             }    
         } 
 				
-		/*½«ÎÂ¶ÈÖµ¸´ÖÆµ½ÆäËûÎÂ¶È±äÁ¿ÖĞ*/		
+		/*å°†æ¸©åº¦å€¼å¤åˆ¶åˆ°å…¶ä»–æ¸©åº¦å˜é‡ä¸­*/		
         t_realtime_last=t_realtime; 	
         temp_out_value=t_realtime;
 		temp_num = (int8_t)(t_realtime/100);
 		temp_user_10=(int16_t)(t_realtime);
-		/*ÎÂÑ­¿ØÖÆ*/
+		/*æ¸©å¾ªæ§åˆ¶*/
 		Produce_Temperature_Control();	   
     } 
 } 
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	:Ä£Ê½00 ×Ô¶¯µ÷½ÚDPÖµ  Ä£Ê½0x88¸ù¾İÎÂ¶Èµ÷½ÚDP
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	:æ¨¡å¼00 è‡ªåŠ¨è°ƒèŠ‚DPå€¼  æ¨¡å¼0x88æ ¹æ®æ¸©åº¦è°ƒèŠ‚DP
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 int32_t Static_Read_ADC_Calculate_Average_Value(void)
@@ -1805,9 +1833,9 @@ int32_t Static_Read_ADC_Calculate_Average_Value(void)
 	pdest_buff=temp_buff;
 	for(i=0;i<TEMP_SIGNAL_MAX;i++)
 	{
-		*pdest_buff++=*psrc_buff++;    //¸´ÖÆÊı¾İ
+		*pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
 	}
-	//ÇóÆ½¾ù
+	//æ±‚å¹³å‡
 	for(i=100;i<TEMP_SIGNAL_MAX;i++)
 	{
 		sum+=temp_buff[i];
@@ -1817,28 +1845,28 @@ int32_t Static_Read_ADC_Calculate_Average_Value(void)
 }
 /**
 *********************************************************************************************************
-* @Ãû³Æ	: 
-* @ÃèÊö	:¾²Ì¬ÉÏ±¨DPºÍ¾àÀë
-* @²ÎÊı	: 
-* @·µ»Ø	: 
+* @åç§°	: 
+* @æè¿°	:é™æ€ä¸ŠæŠ¥DPå’Œè·ç¦»
+* @å‚æ•°	: 
+* @è¿”å›	: 
 *********************************************************************************************************
 **/
 void VAPD_Temp_Static(void)
 {
 	static int32_t  t_realtime_last=-2000;
-	/*ÅĞ¶ÏDMAÎÂ¶ÈÊı¾İ²ÉÑùÍê³É*/
+	/*åˆ¤æ–­DMAæ¸©åº¦æ•°æ®é‡‡æ ·å®Œæˆ*/
     if(temp_flag)
     {
         temp_flag=0;
-        /*Í£Ö¹ADC*/ 
+        /*åœæ­¢ADC*/ 
         HAL_ADC_Stop(&hadc1);           
-		/*Í¨µÀ»Ö¸´³É²É¼¯ĞÅºÅµÄÍ¨µÀ*/ 
+		/*é€šé“æ¢å¤æˆé‡‡é›†ä¿¡å·çš„é€šé“*/ 
         ADC1_SetChannel(SIGNAL_CHN);           
-        /*¶ÁÈ¡ADCÖµ ²¢¼ÆËãÆ½¾ÖÖµ               ¾²Ì¬*/    
+        /*è¯»å–ADCå€¼ å¹¶è®¡ç®—å¹³å±€å€¼               é™æ€*/    
 		apd_therm_vol_ad=Static_Read_ADC_Calculate_Average_Value();
-		/*Í¨¹ı²é±íµÄ·½Ê½»»Ëã³ÉÊµ¼ÊÎÂ¶È */  
+		/*é€šè¿‡æŸ¥è¡¨çš„æ–¹å¼æ¢ç®—æˆå®é™…æ¸©åº¦ */  
 		t_realtime=Query_Table_Calculate_Temperature(apd_therm_vol_ad);         
-        /*ÅĞ¶ÏÎÂ¶È±ä»¯ ²»ÄÜ³¬¹ı2¡æ */ 
+        /*åˆ¤æ–­æ¸©åº¦å˜åŒ– ä¸èƒ½è¶…è¿‡2â„ƒ */ 
         if(t_realtime_last>(-2000))
         {
             if(fabs((float)(t_realtime-t_realtime_last))>100)
@@ -1851,17 +1879,17 @@ void VAPD_Temp_Static(void)
             }    
         }    
         t_realtime_last=t_realtime; 
-		/*½«ÎÂ¶ÈÖµ¸´ÖÆµ½ÆäËûÎÂ¶È±äÁ¿ÖĞ*/
+		/*å°†æ¸©åº¦å€¼å¤åˆ¶åˆ°å…¶ä»–æ¸©åº¦å˜é‡ä¸­*/
         temp_out_value=t_realtime;
   		temp_num = (int8_t)(t_realtime/100);
 		temp_user_10=(int16_t)(t_realtime);
-		/*ÎÂÑ­¿ØÖÆ*/
+		/*æ¸©å¾ªæ§åˆ¶*/
 		Produce_Temperature_Control();	        
     } 
 }
 
 /*-------------------------------------------*/
-//ÎÂ¶ÈĞ£×¼²¿·Öº¯Êı
+//æ¸©åº¦æ ¡å‡†éƒ¨åˆ†å‡½æ•°
 void Temp_senddata(void)
 {
 
@@ -1870,11 +1898,11 @@ void Temp_senddata(void)
 
     *p++=0xef;
     *p++=0xef;
-    //×éÖ¡£¬·¢ËÍ
+    //ç»„å¸§ï¼Œå‘é€
     *p++=apd_therm_vol_ad>>8;   
     *p++=apd_therm_vol_ad;
     
-    *p++=distance_realtime>>8;   //¾àÀë
+    *p++=distance_realtime>>8;   //è·ç¦»
     *p++=distance_realtime;
     
     *p++=intensity_realtime;
@@ -1904,18 +1932,18 @@ void Temp_GetPosition(void)
 
   
         pdest_buff=adc_buff_add;
-        //²ÉÑù½áÊøÊÇ¸ßµçÆ½£¬ÒâÎ¶×Å´¥·¢ÊÇÉÏÉıÑØ£¬´ËÊ±Êı¾İÓĞĞ§¡£
-        //²ÉÑù½áÊøÊÇµÍµçÆ½£¬ÒâÎ¶×Å´¥·¢ÊÇ¡°ÏÂ½µÑØ¡±£¬´ËÊ±Êı¾İÎŞĞ§¡£
+        //é‡‡æ ·ç»“æŸæ˜¯é«˜ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯ä¸Šå‡æ²¿ï¼Œæ­¤æ—¶æ•°æ®æœ‰æ•ˆã€‚
+        //é‡‡æ ·ç»“æŸæ˜¯ä½ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯â€œä¸‹é™æ²¿â€ï¼Œæ­¤æ—¶æ•°æ®æ— æ•ˆã€‚
         if(adc_valid_flag)
         {    
             for(i=0;i<IF_MAX;i++)
             {
-                *pdest_buff++=*psrc_buff++;    //¸´ÖÆÊı¾İ
+                *pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
             }
         }
    
         distance_realtime=Calculate_Position(IF_MAX,adc_buff_add,&delta,&direct_current);
-		/*¾àÀëÎªÓĞĞ§ÖµÊ± ÖØÆô¼ÆÊıÆ÷ÇåÁã*/
+		/*è·ç¦»ä¸ºæœ‰æ•ˆå€¼æ—¶ é‡å¯è®¡æ•°å™¨æ¸…é›¶*/
 		if(distance_realtime>0)
 			restart_num=0;
 			
@@ -1923,7 +1951,7 @@ void Temp_GetPosition(void)
 		intensity_out_value=intensity_realtime;
 		distance_out_value=distance_realtime;
 		
-		/*  ±£´æÎÂ¶ÈÏµÊı  ¾²Ì¬²âÊÔ */
+		/*  ä¿å­˜æ¸©åº¦ç³»æ•°  é™æ€æµ‹è¯• */
 		//Save_Temperature_Coefficient_Handle(distance_realtime);
     }   
 }
@@ -1948,7 +1976,7 @@ void Temp_GetTemp(void)
         pdest_buff=temp_buff;
         for(i=0;i<TEMP_SIGNAL_MAX;i++)
         {
-            *pdest_buff++=*psrc_buff++;    //¸´ÖÆÊı¾İ
+            *pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
         }
         
         for(i=0;i<TEMP_SIGNAL_MAX;i++)
@@ -1964,7 +1992,7 @@ void Temp_GetTemp(void)
 
 /*-------------------------------------------*/
 
-//ÉèÖÃAPDÆ«Ñ¹£¬¼´PWM Õ¼¿Õ±È
+//è®¾ç½®APDåå‹ï¼Œå³PWM å ç©ºæ¯”
 void VPAD_SetPWMDuty(uint32_t duty)
 {
     TIM2_PWM_SetDuty(duty);
@@ -1974,31 +2002,22 @@ void VPAD_SetPWMDuty(uint32_t duty)
 
 
 
-//GPIOA4ÓÃÓÚ²âÊÔË¢ĞÂËÙ¶È
+//GPIOA4ç”¨äºæµ‹è¯•åˆ·æ–°é€Ÿåº¦
 void GPIOA4_Blink(void)
 {
-    static uint8_t flag;
-    flag=~flag;
-    if(flag)
-        {
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-        }
-        else
-        {
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-        }  
+
 
 }
 
 /*************************************************************************************
-* º¯ÊıÃû³Æ: LineInsert
+* å‡½æ•°åç§°: LineInsert
 *
-* ¹¦ÄÜÃèÊö: ÏßĞÔ²åÖµ,2µã»­Ïß£¬¸ù¾İµÚ3µãX¼ÆËãY
+* åŠŸèƒ½æè¿°: çº¿æ€§æ’å€¼,2ç‚¹ç”»çº¿ï¼Œæ ¹æ®ç¬¬3ç‚¹Xè®¡ç®—Y
 *				             
-* Èë¿Ú²ÎÊı:  dot1£¬µÚÒ»µã£»		×¢Òâ£ºÎª±ÜÃâµÚÒ»µã±ØĞëÊÇ×ó±ßµÄµã
-*			 dot2£¬µÚ¶şµã£»
-*			 x£¬   ´ı¼ÆËãµãµÄXÖµ	
-* ³ö¿Ú²ÎÊı:  
+* å…¥å£å‚æ•°:  dot1ï¼Œç¬¬ä¸€ç‚¹ï¼›		æ³¨æ„ï¼šä¸ºé¿å…ç¬¬ä¸€ç‚¹å¿…é¡»æ˜¯å·¦è¾¹çš„ç‚¹
+*			 dot2ï¼Œç¬¬äºŒç‚¹ï¼›
+*			 xï¼Œ   å¾…è®¡ç®—ç‚¹çš„Xå€¼	
+* å‡ºå£å‚æ•°:  
 *
 ************************************************************************************/
 int32_t LineInsert(DOT dot1, DOT dot2,int32_t x)
@@ -2017,10 +2036,2031 @@ void Static_senddata(void)
 
 	*p++=0xef;
 	*p++=0xef;
-	//×éÖ¡£¬·¢ËÍ
-	*p++=0;        //ËÙ¶È
+	//ç»„å¸§ï¼Œå‘é€
+	*p++=0;        //é€Ÿåº¦
 	*p++=0; 
-	*p++=0;;            //½Ç¶È  
+	*p++=0;;            //è§’åº¦  
+
+	*p++ =  distance_out_value>>8;
+	*p++ =  distance_out_value;
+	*p++ =  intensity_out_value;		
+
+	*p++ =  dp_out_value>>8;
+	*p++ =  dp_out_value;
+	*p++ =  (int8_t)(temp_out_value/100);	
+
+	*p++ =  temp_out_value>>8;
+	*p++ =  temp_out_value;
+	*p++ =  0;	
+	
+	for (i=0;i<3;i++)
+		*p++=0;
+	sum=0;
+	for(i=0;i<23;i++)
+	{
+		sum+=cmd_data_buff[i];
+	}   
+	cmd_data_buff[23]=sum;
+	if(sum==0xEF)
+	{
+		cmd_data_buff[22]++;
+		cmd_data_buff[23]++;
+	} 
+				
+    while(!__HAL_UART_GET_FLAG(&huart1,UART_FLAG_TC)){;}       
+    HAL_UART_Transmit_DMA(&huart1,static_data_buff,24); 
+}
+
+/* USER CODE END 1 */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
+#include "arm_math.h"
+#include "coeff.h"
+#include "apd_temp_para.h"
+#include "dis_para.h"
+
+#define _2PI    (2*3.14152966F)
+#define DIS_MAX_VALUE (15000U)
+#define DIS_ANGLE_MAX (360U)
+
+uint32_t adc_converted_value_num; //0æˆ–è€…1
+ADC_CONVERTED_VALUE  adc_converted_value_0,adc_converted_value_1;
+
+
+int32_t adc_buff_add[IF_MAX];
+int32_t adc_buff[IF_MAX];
+int32_t temp_buff[IF_MAX];
+
+volatile uint8_t adc_cplt_flag=0;
+volatile uint8_t adc_valid_flag=0;
+volatile uint8_t adc_half_cplt_flag=0;
+
+volatile uint8_t sample_channel=SIGNAL_CHN;
+volatile uint8_t temp_flag;
+
+
+volatile DIS_DTTA dis_buff[DIS_MAX];
+volatile uint32_t dis_cnt;
+volatile uint32_t dis_cnt_last;
+volatile uint32_t dis_cnt_last_save;
+__DIS_INT_ANG_DATA dis_int_angle_data[DIS_ANGLE_MAX+1];
+extern volatile uint32_t motor_speed_counter;
+
+extern volatile uint32_t angle_trig_flag,angle_trig_counter_record[30],angle_trig_cnt,angle_trig_cnt_save;
+uint32_t angle_trig_cnt_save_copy;
+extern volatile uint32_t motor_speed;
+extern volatile uint32_t motor_speed_rt;
+uint8_t debug_temp_num=0;
+extern uint16_t restart_num;
+extern uint8_t adc_error_ovr;
+
+#define BUFF_MAX_SIZE       5           //é˜Ÿåˆ—é•¿åº¦ä¸º5        
+#define BUFF_MAX_LENGTH     24          //å®½åº¦ä¸º24
+
+uint8_t cmd_data_buff[100]={
+                    0xEF,0xEF,                                      //å¸§å¤´
+                    0x00,0x05,                                      //è½¬é€Ÿ
+                    0x00,                                           //è§’åº¦
+                    0x00,0x01,0x20,
+	                  0x00,0x01,0x20,
+	                  0x00,0x01,0x20,   //ï¼ˆè·ç¦»+åå°„ç‡ï¼‰*6
+                    0x00,0x01,0x20,
+	                  0x00,0x01,0x20,
+	                  0x00,0x01,0x20,
+                    0x00                                            //æ ¡éªŒå’Œ
+                };
+
+uint8_t queue_data_buff[BUFF_MAX_SIZE][BUFF_MAX_LENGTH];                
+uint8_t out_buff[BUFF_MAX_LENGTH]; 
+float thershold_buff[15];            
+Queue queue;
+uint8_t send_flag=0;
+                
+uint32_t APD_circle_cnt,APD_high_cnt,APD_low_cnt;   
+
+uint32_t temp_default_value=1798;//1.71V
+uint32_t vapd_pwm_duty=150;//135//200//230;   
+
+uint16_t apd_therm_vol_ad=1000;   //adå€¼  
+int32_t  t_realtime=0;  
+int16_t  temp_threshold=-1000;   //ä½æ¸©ä¸è°ƒçš„é˜ˆå€¼ ï¼Œé»˜è®¤-10åº¦              
+   
+int16_t  DP_num=0;  
+int8_t   temp_num=0;								
+uint16_t apd_bias_vol_ad=0;    //adå€¼             
+
+uint16_t distance_realtime=0;
+uint16_t intensity_realtime=0;              
+
+extern volatile uint8_t angle_num,angle_num_max;
+uint8_t angle_num_copy,angle_num_max_copy;    
+                
+int16_t angle_offset=0;   //å¿…é¡»æ˜¯6çš„æ•´æ•°å€                
+
+int32_t b0=-1300; //åˆå§‹æˆªè·ï¼Œ-1.5ç±³ã€‚2019.9.29æ”¹ä¸º-1.8ç±³ã€‚
+int32_t a1=10000,b1=0,a2=10000,b2=0,a3=10000,b3=0,a4=10000,b4=0,thread_12=0,thread_23=0,thread_34=0;  
+
+int32_t a_i=0,b_i=0,a_dc=0,b_dc=0;
+int32_t a_t=0,t0=0;  
+
+int16_t t_25=30;  
+uint16_t t_apd_vol_high=28*1120,t_apd_vol_low=28*820;
+
+
+extern uint16_t work_mode;                
+extern volatile uint32_t angle_num_sum;
+
+extern uint16_t cp_value,dp_value;
+
+extern uint8_t temp_vol_flag;
+
+uint16_t distance_intensity_thread=0;
+
+
+uint16_t dis_1,dis_2,dis_3,dis_4,dis_5,inte_1,inte_2,inte_3,inte_4,inte_5;
+
+
+//ä¿å­˜è·ç¦»å‚æ•°
+unsigned short dis_cali[31]={
+0,
+9,
+33,
+87,
+134,
+185,
+228,
+286,
+376,
+466,
+556,
+646,
+736,
+826,
+916,
+1006,
+1096,
+1186,
+1276,
+1304,
+1304,
+1312,
+1317,
+1328,
+1337,
+1348,
+1362,
+1389,
+1411,
+1425,
+1450
+};
+
+unsigned short dis_standard[31]={
+1419,
+1424,
+1446,
+1495,
+43,
+95,
+139,
+191,
+280,
+368,
+456,
+543,
+631,
+719,
+807,
+895,
+982,
+1070,
+1190,
+1215,
+1221,
+1230,
+1240,
+1257,
+1274,
+1293,
+1313,
+1334,
+1354,
+1378,
+1398
+
+};
+
+//ä¿å­˜APDçš„æ¸©åº¦å‚æ•°
+unsigned short temp_ad[100]={
+3604,
+3579,
+3553,
+3526,
+3499,
+3470,
+3441,
+3411,
+3379,
+3347,
+3314,
+3281,
+3246,
+3210,
+3174,
+3137,
+3099,
+3060,
+3021,
+2981,
+2940,
+2898,
+2856,
+2814,
+2771,
+2727,
+2683,
+2639,
+2594,
+2549,
+2504,
+2458,
+2413,
+2367,
+2321,
+2275,
+2230,
+2184,
+2138,
+2093,
+2048,
+2003,
+1959,
+1914,
+1871,
+1827,
+1784,
+1742,
+1700,
+1658,
+1617,
+1577,
+1537,
+1498,
+1460,
+1422,
+1385,
+1348,
+1312,
+1277,
+1243,
+1209,
+1176,
+1144,
+1112,
+1082,
+1052,
+1022,
+993,
+965,
+938,
+912,
+886,
+860,
+836,
+812,
+788,
+766,
+744,
+722,
+701,
+681,
+661,
+642,
+624,
+605,
+588,
+571,
+554,
+538,
+523,
+507,
+493,
+479,
+465,
+451,
+438,
+426,
+413,
+402
+};
+
+unsigned short temp_duty[100]={
+270,
+270,
+270,
+270,
+270,
+270,
+270,
+270,
+270,
+270,
+270,
+270,
+270,
+270,
+270
+};
+
+
+
+static uint32_t isFull(void); 
+static uint32_t isEmpty(void);
+static QueueStatus inQueue(uint8_t buff[]);
+static QueueStatus outQueue(uint8_t buff[]);
+
+/* USER CODE END 0 */
+
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+                
+                
+#define debug               0   //0è½¬ï¼Œ1æ›²çº¿
+#define debug_send_distance 0   //1ä½¿èƒ½é™æ­¢æŠ¥è·ç¦»
+
+uint8_t temp_cali_enable=1;     //ä½¿èƒ½æ¸©åº¦æ ¡å‡†åŠŸèƒ½   
+uint8_t dis_offset_enable=1;    //ä½¿èƒ½è·ç¦»è¡¥å¿åŠŸèƒ½
+
+
+/* ADC1 init function */
+void MX_ADC1_Init(void)
+{
+  ADC_ChannelConfTypeDef sConfig;
+
+    /**Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
+    */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2; //é‡‡æ ·é¢‘ç‡æ”¹ä¸º1.4MHzï¼Œ12+3=15clock ï¼Œ84M/4/15=1.4M
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = ENABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_Ext_IT11;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = ENABLE;//DISABLE;//ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /**Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
+  */
+  sConfig.Channel = ADC_CHANNEL_5;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sample_channel=SIGNAL_CHN;    //é‡‡é›†è·ç¦»ä¿¡å·
+ 
+}
+
+//è®¾ç½®ADCçš„é‡‡é›†é€šé“
+void ADC1_SetChannel(uint8_t chn)
+{
+    ADC_ChannelConfTypeDef sConfig;
+    
+    if(chn==TEMP_CHN)   //é‡‡é›†æ¸©åº¦æ•°æ®
+    {    
+        /**Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
+        */
+      sConfig.Channel = ADC_CHANNEL_6;
+      sConfig.Rank = 1;
+      sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+      if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+      {
+        Error_Handler();
+      }
+      sample_channel=TEMP_CHN;    //é‡‡é›†æ¸©åº¦
+    }    
+    else if(chn==SIGNAL_CHN)
+    {
+        /**Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
+        */
+      sConfig.Channel = ADC_CHANNEL_5;
+      sConfig.Rank = 1;
+      sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+      if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+      {
+        Error_Handler();
+      }
+      sample_channel=SIGNAL_CHN;    //é‡‡é›†è·ç¦»ä¿¡å·
+    }
+}    
+
+
+void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
+{
+
+  GPIO_InitTypeDef GPIO_InitStruct;
+  if(adcHandle->Instance==ADC1)
+  {
+  /* USER CODE BEGIN ADC1_MspInit 0 */
+
+  /* USER CODE END ADC1_MspInit 0 */
+    /* Peripheral clock enable */
+    __HAL_RCC_ADC1_CLK_ENABLE();
+  
+    /**ADC1 GPIO Configuration    
+    PA4     ------> ADC1_IN4
+    PA5     ------> ADC1_IN5 
+    */
+    GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_6|GPIO_PIN_5;//|GPIO_PIN_4
+    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    /* Peripheral DMA init*/
+  
+    hdma_adc1.Instance = DMA2_Stream0;
+    hdma_adc1.Init.Channel = DMA_CHANNEL_0;
+    hdma_adc1.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_adc1.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_adc1.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_adc1.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+    hdma_adc1.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
+    hdma_adc1.Init.Mode = DMA_NORMAL;
+    hdma_adc1.Init.Priority = DMA_PRIORITY_HIGH;
+    hdma_adc1.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_adc1) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(adcHandle,DMA_Handle,hdma_adc1);
+
+    /* Peripheral interrupt init */
+    HAL_NVIC_SetPriority(ADC_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(ADC_IRQn);
+  /* USER CODE BEGIN ADC1_MspInit 1 */
+   
+  /* USER CODE END ADC1_MspInit 1 */
+  }
+}
+
+void HAL_ADC_MspDeInit(ADC_HandleTypeDef* adcHandle)
+{
+
+  if(adcHandle->Instance==ADC1)
+  {
+  /* USER CODE BEGIN ADC1_MspDeInit 0 */
+
+  /* USER CODE END ADC1_MspDeInit 0 */
+    /* Peripheral clock disable */
+    __HAL_RCC_ADC1_CLK_DISABLE();
+  
+    /**ADC1 GPIO Configuration    
+    PA4     ------> ADC1_IN4
+    PA5     ------> ADC1_IN5 
+    */
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_4|GPIO_PIN_5);
+
+    /* Peripheral DMA DeInit*/
+    HAL_DMA_DeInit(adcHandle->DMA_Handle);
+
+    /* Peripheral interrupt Deinit*/
+    HAL_NVIC_DisableIRQ(ADC_IRQn);
+
+  }
+  /* USER CODE BEGIN ADC1_MspDeInit 1 */
+
+  /* USER CODE END ADC1_MspDeInit 1 */
+} 
+
+/* USER CODE BEGIN 1 */
+
+//å›è°ƒå‡½æ•°
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc)
+{
+//    hadc1.Instance->CR2 &= ~ADC_CR2_CONT;   //åœæ­¢ADC çš„è¿ç»­è½¬æ¢
+//    //HAL_ADC_Stop(&hadc1);
+//    adc_half_cplt_flag=1;
+}  
+//å›è°ƒå‡½æ•°  åªä¼ é€’æ ‡å¿—ï¼Œä¸è¯»æ•°æ®
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+//    uint32_t i=0;
+    
+    if(sample_channel==SIGNAL_CHN)
+    {
+        adc_cplt_flag=1;    //æ¯æ¬¡éƒ½è¦è®¡ç®—è·ç¦»ï¼Œå¦‚æœæœ¬æ¬¡é‡‡é›†çš„æ˜¯å…¶å®ƒé€šé“ï¼Œåˆ™ç›´æ¥ç”¨ä¸Šæ¬¡çš„æ•°æ®è®¡ç®—è·ç¦»
+        
+        //é‡‡æ ·ç»“æŸæ˜¯é«˜ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯ä¸Šå‡æ²¿ï¼Œæ­¤æ—¶æ•°æ®æœ‰æ•ˆã€‚
+        //é‡‡æ ·ç»“æŸæ˜¯ä½ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯â€œä¸‹é™æ²¿â€ï¼Œæ­¤æ—¶æ•°æ®æ— æ•ˆã€‚
+        if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_3))
+        {
+            adc_valid_flag=1;
+        }
+        else
+        {
+            adc_valid_flag=0;
+        }
+        /*--------------------------------*/  //50us
+        //LD_PowerControl(1);
+        //HAL_ADC_Stop(&hadc1);
+        //MX_ADC1_Init();
+        //HAL_ADC_Start_DMA(&hadc1,adc_converted_value,ADC_DMA_BUFF_LEN); 
+        
+        //angle_num_sum++;
+        angle_num_copy=angle_num;
+        angle_num_max_copy=angle_num_max;
+        angle_trig_cnt_save_copy=angle_trig_cnt_save;
+    }
+    else if(sample_channel==TEMP_CHN)
+    {
+        temp_flag=1;
+    }
+     LD_PowerControl(1);   
+} 
+
+void DelayUS(uint32_t n)
+{
+    uint32_t i=0,j=0;
+    for(i=0;i<n;i++)
+    {
+        for(j=0;j<18;j++){;}
+    }
+} 
+
+//è´¨å¿ƒè®¡ç®—è·ç¦»,çº¦200us
+//3ä¸ªå‘¨æœŸæ˜¯480usï¼Œä¸èƒ½è¶…è¿‡è¿™ä¸ªæ—¶é—´
+//ç®—æ³•åŸåˆ™ï¼šå¯ä»¥å°‘æŠ¥ï¼Œä¸èƒ½é”™æŠ¥
+static uint16_t Calculate_Position(uint32_t numSamples,int32_t data[],uint16_t *delta,uint16_t *d_current)
+{
+//    uint32_t i,j;
+	uint32_t i;
+    int32_t pos=0,pos_pre;
+    uint64_t sum1=0,sum2=0;
+    
+    uint16_t duty;
+//    uint32_t max,min,max_num_cnt,max_pos,low_thre,high_thre,start,end;
+	 uint32_t max,min,max_pos,low_thre,high_thre,start,end;
+    uint32_t amp_thread,amp_thread_2,amp_thread_3,amplitude,max_n,min_thre_2_n,min_thre_2_nmax,max_cnt[10];
+    
+//    uint32_t low_cnt=0,high_cnt=0;
+    
+//    DOT dot1,dot2;
+
+    duty=numSamples/2;         //é‡‡æ ·ç‚¹æ•°ä¸º2ä¸ªå‘¨æœŸ
+    /*------------------------------------------------------- */  
+    //åœ¨ä¸¤ä¸ªå‘¨æœŸå†…ï¼Œæœç´¢å³°çš„ä½ç½®ï¼Œéœ€è¦è€ƒè™‘å¯èƒ½æœ‰å¤šä¸ªå³°
+    max=0;
+    min=4096;
+    max_pos=0;
+    for(i=5;i<duty;i+=4)     //ä»ç¬¬ä¸€ä¸ªç‚¹å¼€å§‹ï¼Œè·³è¿‡æœ‰æ—¶ä¼šå¼‚å¸¸çš„ç¬¬0ä¸ªç‚¹
+    {
+        if(data[i]>max)
+        {
+            max=data[i];
+            //max_pos=i;
+        } 
+        if(data[i]<min)
+        {
+            min=data[i];
+        } 
+    }
+    
+    amplitude=max-min;
+    amp_thread=max-amplitude*1/2;  
+    amp_thread_2=min+amplitude*1/4;
+    *d_current=min;
+
+    max=0;
+    max_pos=0;
+    max_n=0;
+    min_thre_2_n=0;
+    min_thre_2_nmax=0;
+    for(i=5;i<duty;i+=2)
+    {
+        //æ‰¾æå¤§å€¼
+        if(data[i]>amp_thread)
+        {
+            if(data[i]>max)
+            {
+                max=data[i];
+                max_pos=i;
+            }       
+        }
+        else
+        {
+            if(data[i-2]>amp_thread)
+            {    
+                if(max_n<10)
+                {    
+                    max_cnt[max_n]=max_pos;
+                    max_n++;
+                    max=0;
+                }
+            }            
+        }
+        //æ‰¾è¿ç»­ç‚¹æ•°ï¼Œæ•°æ®åœ¨min ~ amp_thread_2 ä¹‹é—´çš„è¿ç»­ç‚¹æ•°è¦å¤§äº50
+        if(data[i]<amp_thread_2)
+        {    
+            min_thre_2_n++;
+        }
+        else
+        {
+            if(min_thre_2_n>min_thre_2_nmax)
+            {
+                min_thre_2_nmax=min_thre_2_n;
+            }    
+            min_thre_2_n=0;
+        }           
+    }
+    
+    if(min_thre_2_n>min_thre_2_nmax)
+    {
+        min_thre_2_nmax=min_thre_2_n;
+    }
+//    if(min_thre_2_nmax<25)
+//    {
+//        *delta=0;
+//        *d_current=0;
+//        return (DIS_MAX_VALUE);
+//    }
+    
+    if(max_n>2)     //æ¯ä¸ªå‘¨æœŸæœ€å¤š2ä¸ªå³°ï¼Œè¶…è¿‡ç›´æ¥è¿”å›æœ€å¤§è·ç¦»
+    {
+        *delta=0;
+        *d_current=0;
+        return (DIS_MAX_VALUE);
+    }    
+    
+    //å®é™…å¯èƒ½çš„å³°ä¸ªæ•°ï¼Œ1ã€2ã€3ã€4ï¼›è¿˜éœ€è¦åˆ¤æ–­å³°åœ¨ä¸¤ä¸ªå‘¨æœŸå†…çš„åˆ†å¸ƒæƒ…å†µ
+    if((max_pos<10)||(max_pos>(duty-10)))
+    {
+        *delta=0;
+        *d_current=0;
+        return (DIS_MAX_VALUE);
+    }    
+
+    //å‰åå„é¢„ç•™60ä¸ªç‚¹ï¼Œæˆªå–
+    if(max_pos<=60)
+    {
+        low_thre=0;
+    }
+    else
+    {
+        low_thre=max_pos-60;
+    }
+    
+    if(max_pos>=(duty-1-60))
+    {
+        high_thre=duty-1;
+    }
+    else
+    {
+        high_thre=max_pos+60;
+    } 
+ 
+/*------------------------------------------------------- */
+    max=0;
+    min=4095;
+    for(i=low_thre;i<high_thre;i++)
+    {
+        data[i]=(data[i]+data[i+duty])>>1;      //ä¸¤ä¸ªå‘¨æœŸç´¯åŠ å¹³å‡
+        data[i]=(data[i]+data[i+1])>>1;         //ä¸¤ç‚¹å¹³æ»‘
+        if(data[i]>max)                         //åœ¨æˆªå–çš„æ•°æ®æ®µå†…å†é‡æ–°æ‰¾æœ€å¤§å€¼å’Œæœ€å°å€¼
+        {
+            max=data[i];
+            max_pos=i;
+        }
+        if(data[i]<min)
+        {
+            min=data[i];
+        }
+    }
+//    //minè¦å¤§äºä¸¤ä¸ªç«¯ç‚¹å€¼çš„æœ€å¤§å€¼ï¼Œé¿å…å‡ºç°å³°å·¦å³ä¸¤è¾¹ä¸å¯¹ç§°çš„æƒ…å†µ
+//    if(data[low_thre]>min)
+//    {
+//        min=data[low_thre];
+//    }    
+//    if(data[high_thre]>min)
+//    {
+//        min=data[high_thre];
+//    } 
+/*-----------------------------------------------------------------*/ 
+//    //è®¡ç®—ç›´æµé‡
+//    j=0;
+//    sum1=0;
+//    for(i=2;i<low_thre;i++)
+//    {
+//        sum1+=data[i];
+//        j++;
+//    }
+//    for(i=high_thre;i<duty;i++)
+//    {
+//        sum1+=data[i];
+//        j++;
+//    }
+//    *d_current=sum1/j;
+/*------------------------------------------------------- */  
+    if((max>min)&&(max-min<20))   //å³°å³°å€¼å°äº100 ï¼Œç›´æ¥è¿”å›æœ€å¤§è·ç¦»ã€‚
+    {      
+        *delta=0;
+        *d_current=0;
+        return (DIS_MAX_VALUE);
+    }
+/*-----------------------------------------------------------------*/
+    //ä¿¡å·æˆªå–
+    amp_thread_3=max-(max-min)*50/100;
+    
+    //amp_thread_3è¦å¤§äºä¸¤ä¸ªç«¯ç‚¹å€¼çš„æœ€å¤§å€¼ï¼Œé¿å…å‡ºç°å³°å·¦å³ä¸¤è¾¹ä¸å¯¹ç§°çš„æƒ…å†µ
+    if(data[low_thre]>amp_thread_3)
+    {
+        amp_thread_3=data[low_thre];
+    }    
+    if(data[high_thre]>amp_thread_3)
+    {
+        amp_thread_3=data[high_thre];
+    }
+    
+    //è´¨å¿ƒ  50us
+    start=0;
+    end=0;
+    sum1=0;
+    sum2=0;
+    for(i=low_thre;i<=high_thre;i++)
+    {
+        if(data[i]>amp_thread_3)
+        {    
+            data[i]-=amp_thread_3;
+            sum1+=data[i]*i;
+            sum2+=data[i];
+            if(start==0)
+            {
+                start=i;
+            }
+            else
+            {
+                end=i;
+            }    
+        }         
+    }
+    //åˆ¤æ–­å®½åº¦ï¼Œé™åˆ¶åœ¨60ä¸ªç‚¹
+//    if((end-start)>60)  
+//    {
+//        *delta=0;
+//        *d_current=0;
+//        return (DIS_MAX_VALUE);
+//    }    
+    pos=(sum1*1000)/sum2; //è®¡ç®—è·ç¦»  
+    pos=(int64_t)pos*15345/duty/1000;      
+
+    
+    //å¼ºåº¦å‹ç¼©
+    //*delta=sum2/300;  
+    *delta=sum2/100;  //50
+    
+    /*-----------------------------------------------------------------*/ 
+    //å¼ºåº¦ã€è·ç¦»ä¿®æ­£
+    if((*delta)<255)
+    {    
+        //pos=pos+((*d_current+a_t*((int32_t)apd_therm_vol_ad-t0)/10000-1100)*a_dc+b_dc+50)/10000+((*delta)*a_i+b_i+50)/100;
+        //pos=pos+((*d_current+a_t*((int32_t)apd_therm_vol_ad-t0)/10000-1100)*a_dc+b_dc+50)/10000*10+((*delta)*a_i+b_i+50)/100*10;
+        //pos=pos+((*d_current+a_t*((int32_t)apd_therm_vol_ad-t0)/10000-1100)*a_dc+b_dc+50)/1000+((*delta)*a_i+b_i+50)/10;
+        pos=pos+((*d_current-1100)*b_i)/1000+((*delta)*a_i)/10;
+    }
+    else
+    {    
+        //pos=pos+((*d_current+a_t*((int32_t)apd_therm_vol_ad-t0)/10000-1100)*a_dc+b_dc+50)/1000;
+        pos=pos+((*d_current-1100)*b_dc)/1000+((*delta)*a_dc)/10;
+    }
+    
+    
+    //æ¸©åº¦ä¿®æ­£ 2019.3.21
+    pos=pos+a_t*((int32_t)apd_therm_vol_ad)/10000;
+    
+/*-----------------------------------------------------------------*/
+    //å¼ºåº¦èŒƒå›´é™åˆ¶
+    if(*delta>255)
+    {
+        *delta=255;
+    }   
+/*-----------------------------------------------------------------*/    
+    pos_pre=pos;
+    //è·ç¦»è¡¥å¿ï¼Œä¹˜ä»¥æ–œç‡ï¼ŒåŠ ä¸Šæˆªè·
+    if(dis_offset_enable)
+    {    
+        if(pos_pre>(thread_12*10))
+        {    
+            pos= (pos*a1+b1*1000)/10000;
+        }
+        else if(pos_pre>(thread_23*10))
+        {
+            pos= (pos*a2+b2*1000)/10000;
+        } 
+        else if(pos_pre>(thread_34*10))
+        {
+            pos= (pos*a3+b3*1000)/10000;
+        }
+        else
+        {
+            pos= (pos*a4+b4*1000)/10000;
+        }    
+    }
+    
+    pos+=b0;        //åŠ ä¸Šåˆå§‹æˆªè·
+    
+    if((pos<0)||(pos>DIS_MAX_VALUE))
+    {
+        *delta=0;
+        *d_current=0;
+        return (DIS_MAX_VALUE);
+    } 
+    
+    
+    
+//é«˜åä¿®æ­£    
+//    if((pos>500)&&(pos<1000))
+//    {
+//        if(*delta>200)
+//        {
+//            pos=pos-((*delta)*(-0.066)-74.66);
+//        }    
+//    }    
+//    else
+//    {
+//        if(*delta>150)
+//        {
+//            pos=pos-((*delta)*(-0.066)-74.66);
+//        }    
+//    }    
+    
+    
+    
+    if(pos>9000) //8200
+    {
+        pos=DIS_MAX_VALUE;
+    } 
+    
+    //è·ç¦»å¼ºåº¦é™åˆ¶ 
+    if((pos<dis_1)&&(pos>=dis_2))
+    {
+        if(*delta<inte_1)
+        {
+            *delta=0;
+            *d_current=0;
+            return (DIS_MAX_VALUE);
+        }    
+    }
+    else if((pos<dis_2)&&(pos>=dis_3))
+    {
+        if(*delta<inte_2)
+        {
+            *delta=0;
+            *d_current=0;
+            return (DIS_MAX_VALUE);
+        }    
+    }
+    else if((pos<dis_3)&&(pos>=dis_4))
+    {
+        if(*delta<inte_3)
+        {
+            *delta=0;
+            *d_current=0;
+            return (DIS_MAX_VALUE);
+        }    
+    }
+    else if((pos<dis_4)&&(pos>=dis_5))
+    {
+        if(*delta<inte_4)
+        {
+            *delta=0;
+            *d_current=0;
+            return (DIS_MAX_VALUE);
+        }    
+    }
+    else if(pos<dis_5)
+    {
+        if(*delta<inte_5)
+        {
+            *delta=0;
+            *d_current=0;
+            return (DIS_MAX_VALUE);
+        }    
+    }
+    
+    if(pos<3000)
+    {    
+        if(min_thre_2_nmax<25)
+        {
+            *delta=0;
+            *d_current=0;
+            return (DIS_MAX_VALUE);
+        }
+    }
+    
+    return (pos);
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+
+uint16_t intensity_out_value; 
+int16_t dp_out_value;
+maxmin_t  user_maxmin;
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	: user_maxmin.min   0ä¸ºæœ€å°
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+void Save_Maxmin_Min(uint16_t distance_realtime)
+{
+	uint16_t data_buff[MAXMIN_SIZE+1],temp;
+	uint8_t i,j;
+	//å°†æœ€å°å€¼å¤åˆ¶åˆ°maxminæ•°å€¼0~9 å¤„   æœ€æ–°å€¼å¤åˆ¶åˆ°10
+	memcpy(data_buff,&user_maxmin.min[0],20);
+	data_buff[MAXMIN_SIZE]=distance_realtime;
+	
+   //å†’æ³¡æ’åº 0~10   0ä¸ºæœ€å° 
+	for(j=0;j<10;j++)
+	{
+		for(i=0;i<10-j;i++)
+		{
+			if(data_buff[ i ] > data_buff[i + 1])
+			{
+				temp = data_buff[i];
+				data_buff[i] = data_buff[i + 1];
+				data_buff[i + 1] = temp;
+			}
+		}
+	}
+	//å°†1~10æ•°æ®å¤åˆ¶åˆ° maxminæ•°å€¼
+	memcpy(&user_maxmin.min[0],&data_buff[0],20);
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	: user_maxmin.max   0ä¸ºæœ€å¤§
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+void Save_Maxmin_Max(uint16_t distance_realtime)
+{
+	uint16_t data_buff[MAXMIN_SIZE+1],temp;
+	uint8_t i,j;
+	//å°†æœ€å°å€¼å¤åˆ¶åˆ°maxminæ•°å€¼0~9 å¤„   æœ€æ–°å€¼å¤åˆ¶åˆ°10
+	memcpy(data_buff,&user_maxmin.max[0],20);
+	data_buff[MAXMIN_SIZE]=distance_realtime;
+	
+   //å†’æ³¡æ’åº 0~10   0ä¸ºæœ€å¤§
+	for(j=0;j<10;j++)
+	{
+		for(i=0;i<10-j;i++)
+		{
+			if(data_buff[ i ] < data_buff[i + 1])
+			{
+				temp = data_buff[i];
+				data_buff[i] = data_buff[i + 1];
+				data_buff[i + 1] = temp;
+			}
+		}
+	}
+	//å°†1~10æ•°æ®å¤åˆ¶åˆ° maxminæ•°å€¼
+	memcpy(&user_maxmin.max[0],&data_buff[0],20);
+	
+	
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+ void Temperature_Coefficient_Find_Maxmin(uint16_t distance_realtime)
+{
+	//æµ‹é‡å€¼å°äº MIN
+	if(distance_realtime<user_maxmin.min[MAXMIN_SIZE-1])
+	{
+		Save_Maxmin_Min(distance_realtime);
+	}
+	//æµ‹é‡å€¼å°äº MAX	
+	else if((distance_realtime>user_maxmin.max[MAXMIN_SIZE-1])&&(distance_realtime!=DIS_MAX_VALUE))
+	{
+		Save_Maxmin_Max(distance_realtime);
+	}
+}
+
+uint8_t temperature_coefficient_state=PREHEAT_STATE;
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+
+uint16_t test_max_data;
+uint16_t test_min_data;
+uint8_t  temperature_coefficient_save_flag=0;
+uint16_t temperature_coefficient_save_num=0;
+uint16_t thershold_buff_calc[15];
+uint16_t  testttt[15];
+void Calc_Thershold_Handle(void)
+{
+	float max,min;
+	float  space;
+	uint8_t i;
+	max=0;
+	min=0;
+	//æå–max  minå5ç»„æ•°æ®
+	for(i=5;i<=9;i++)
+		max += user_maxmin.max[i];
+	max=max/5;
+	for(i=5;i<=9;i++)
+		min += user_maxmin.min[i];
+	min=min/5;
+	space=(max-min)/11;
+	for(i=0;i<10;i++)
+	{
+		thershold_buff[i]=min+space*(i+1);
+		thershold_buff_calc[i]=(uint16_t)thershold_buff[i];
+	}
+	
+	
+	test_max_data=max;
+	test_min_data=min;
+	//åˆ‡æ¢è¿è¡Œæ¨¡å¼
+	temperature_coefficient_state=SAVE_DATA_STATE;
+	temperature_coefficient_save_num=0;
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+temperature_coefficient_group_t user_temperature_coefficient;
+
+void Save_Data_Handle(uint16_t distance_realtime)
+{
+	uint8_t i;
+	int8_t  temperature_value; 
+	int8_t  save_handle_flag_buff[10];
+	/* æ¸…é›¶ */	
+	memset(save_handle_flag_buff,0,sizeof(save_handle_flag_buff));
+	/*æ ¹æ®æµ‹é‡å€¼åŒ¹é…é˜ˆå€¼*/	
+	for(i=0;i<10;i++)
+	{
+		if(thershold_buff[i]>3)
+		{
+			if( ( distance_realtime >= ( thershold_buff[i]-5 ) )&&
+				( distance_realtime <= ( thershold_buff[i]+5 ) ) )
+				save_handle_flag_buff[i]=1;
+		}
+	}
+	/* æå–æ¸©åº¦*/
+	temperature_value=(temp_num+15);
+	/* å°†æ•°æ®ä¿å­˜åˆ°æ‰€æœ‰ç¬¦åˆé˜ˆå€¼è°ƒèŠ‚çš„ç¼“å­˜ä¸­   */	
+	for(i=0;i<10;i++)
+	{
+		if((save_handle_flag_buff[i]==1)&&(temperature_value>=0)&&(temperature_value<70))
+		{
+			user_temperature_coefficient.group[i].data[temperature_value].dis=distance_realtime;
+			user_temperature_coefficient.group[i].data[temperature_value].dp=dp_out_value;
+			user_temperature_coefficient.group[i].data[temperature_value].intensity=intensity_out_value; 
+			user_temperature_coefficient.group[i].data[temperature_value].temp=temp_num;
+		}
+	}
+	/* ä¿å­˜å‚æ•°åˆ°FLASH */
+	if(temperature_coefficient_save_flag==1)
+	{
+		temperature_coefficient_save_flag=0;
+		Temperature_Coefficient_Flash_Write(); 
+		/*è¯»å–å‚æ•°ç”¨äºæµ‹è¯•è§‚å¯Ÿ*/
+		Temperature_Coefficient_Flash_Read() ;
+	}
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	: 
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+uint8_t temperature_coefficient_handle_flag=0;
+
+void Save_Temperature_Coefficient_Handle(uint16_t distance_realtime)
+{
+	debug_temp_num++;
+	switch(temperature_coefficient_state)
+	{
+		/* é¢„çƒ­ ä¸è¿›è¡Œæ“ä½œ*/
+		case PREHEAT_STATE:
+		break;
+		/* å¯»æ‰¾æœ€å¤§æœ€å°å€¼ */
+		case FIND_MIN_MAX_STATE:
+			Temperature_Coefficient_Find_Maxmin(distance_realtime);
+		break;
+		/* è®¡ç®—10ç»„é˜ˆå€¼*/
+		case CALC_THRESHOLD_STATE:
+			Calc_Thershold_Handle();
+		break;
+		/*  ä¿å­˜æ•°æ®*/
+		case SAVE_DATA_STATE:
+			Save_Data_Handle(distance_realtime);		
+		break;
+		default:
+		break;
+	}
+}
+	
+uint16_t angle_max=0;
+//å­˜å‚¨è·ç¦»çš„è®¡ç®—ç»“æœ
+void GetPosition(void)
+{
+//    uint32_t i=0,j=0;
+	uint32_t i=0;
+    uint16_t delta=0,direct_current=0;
+    uint16_t temp=0;
+	uint16_t current_angle=0;
+ 
+    
+    uint16_t *psrc_buff=NULL;
+    int32_t *pdest_buff;    
+    
+    if(adc_cplt_flag)
+    {
+        adc_cplt_flag=0;
+        
+        if(adc_converted_value_num==0)
+        {
+            psrc_buff=(uint16_t *)adc_converted_value_0.dat;
+            adc_converted_value_num=1;
+        }
+        else
+        {
+            psrc_buff=(uint16_t *)adc_converted_value_1.dat;
+            adc_converted_value_num=0;
+        }    
+        pdest_buff=adc_buff_add;
+        //é‡‡æ ·ç»“æŸæ˜¯é«˜ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯ä¸Šå‡æ²¿ï¼Œæ­¤æ—¶æ•°æ®æœ‰æ•ˆã€‚
+        //é‡‡æ ·ç»“æŸæ˜¯ä½ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯â€œä¸‹é™æ²¿â€ï¼Œæ­¤æ—¶æ•°æ®æ— æ•ˆã€‚
+        if(adc_valid_flag)
+        {    
+            for(i=0;i<IF_MAX;i++)
+            {
+                *pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
+            }
+        }
+        
+        { 
+
+            temp=angle_standard[angle_trig_cnt_save_copy]+(angle_num_max_copy-angle_num_copy)+1;
+            temp-=8;
+			current_angle=temp;
+            //è§’åº¦å–å€¼1~360
+            dis_buff[temp].trig_angle=temp;
+            angle_max=temp;
+            if(((angle_trig_cnt_save_copy==29)&&(angle_num_copy==0)) || ((angle_trig_cnt_save_copy==0)&&(angle_num_copy>=5)))  //å·²ç»èµ°å®Œæœ€åä¸€ä¸ªé½¿çš„æœ€åä¸€ä¸ªè§’åº¦ï¼Œå°†è§’åº¦æœ€å¤§å€¼è®¾ä¸º360åº¦ 
+            {
+                angle_max=360;
+            }
+    
+			distance_realtime=Calculate_Position(IF_MAX,adc_buff_add,&delta,&direct_current);
+			dis_buff[temp].dis=distance_realtime; 
+			/*è·ç¦»ä¸ºæœ‰æ•ˆå€¼æ—¶ é‡å¯è®¡æ•°å™¨æ¸…é›¶*/
+			if(distance_realtime>0)
+				restart_num=0;
+			
+			/* å½“è®¡ç®—åˆ°è§’åº¦1æ—¶ ä¿å­˜æ¸©å¾ªæ•°æ® */
+			if(current_angle==1)
+			{
+				//temperature_coefficient_handle_flag=0;
+				if(work_mode == MODE_SAVE_DATA)
+					Save_Temperature_Coefficient_Handle(dis_buff[1].dis);
+				
+			}
+			
+			intensity_realtime=delta;
+			intensity_out_value=intensity_realtime;
+			dis_buff[temp].intensity=intensity_realtime;
+			dis_buff[temp].DPset = DP_num;
+			dis_buff[temp].Therm = temp_num;
+						
+            if(work_mode==0x81)
+            {    
+                printf("%d;%d;%d;%d\r",dis_buff[temp].dis,dis_buff[temp].intensity,direct_current,t_realtime);   //è€—æ—¶700us
+            }           
+            GPIOA4_Blink();     //è¾“å‡ºè·ç¦»çš„è®¡ç®—é¢‘ç‡            
+        }
+    } 
+		
+}
+
+extern uint32_t apd_duty;
+extern uint16_t temp_user_10;
+//è®¡ç®—æ¯ä¸€åº¦çš„è·ç¦»æ•°æ®ï¼Œæ¯æ»¡6åº¦å‘é€ä¸€å¸§    å‘é€æ•°æ®é‡‡ç”¨åº¦è„‰å†²æ–¹å¼
+uint32_t GetDistanceAndAngle(void)
+{
+    uint32_t i=0,j=0;
+    uint8_t *p=cmd_data_buff;
+//    static uint32_t i_static=0;
+    static uint16_t angle=1,angle_max_copy;
+    int16_t angle_send=0,temp=0;
+    uint32_t sum=0;
+  
+    if(angle_max_copy  == angle_max)
+    {
+        return 0;
+    }    
+    angle_max_copy=angle_max;   
+
+    for(;angle<=angle_max_copy;)
+    {   
+        if((angle>=6)&&((angle%6)==0))       //æ¯6åº¦å‘ä¸€æ¬¡
+        {
+            {
+                *p++=0xef;
+                *p++=0xef;
+                //ç»„å¸§ï¼Œå‘é€
+                *p++=motor_speed>>8;        //é€Ÿåº¦
+                *p++=motor_speed;            
+                //å¯¹è§’åº¦è¿›è¡Œä¿®æ­£180åº¦
+                angle_send=angle;
+                angle_send-=240;
+                angle_send-=angle_offset;
+                *p++=(angle-6)/6;;            //è§’åº¦  
+                //æµ‹6æ¬¡ç›¸ä½æ•°æ®ï¼Œè·ç¦»+åå°„ç‡ 
+                for(j=1;j<=6;j++)  
+                {
+                    temp=angle_send+j;
+                    if(temp>360)
+                    {
+                        temp-=360;
+                    }
+                    else if(temp<=0)
+                    {
+                        temp+=360;
+                    } 
+                    									
+                    if(angle==6 && j==2)
+					{
+						*p++ =  dis_buff[temp].DPset>>8;
+						*p++ =  dis_buff[temp].DPset;					
+						*p++ =  (int8_t)(dis_buff[temp].Therm);	
+						
+//						*p++ =  thershold_buff_calc[0]>>8;
+//						*p++ =  thershold_buff_calc[0];
+//						
+//						*p++=debug_temp_num; //å¤„ç†è®¡æ•°						
+					}
+					else
+					{
+						if(j==3)
+						{
+							*p++=temp_user_10>>8;   //è·ç¦»
+							*p++=temp_user_10;
+							
+							*p++=0; 												
+						}
+						else
+						{
+							*p++=dis_buff[temp].dis>>8;   //è·ç¦»
+							*p++=dis_buff[temp].dis;
+							*p++=dis_buff[temp].intensity; //åå°„ç‡
+							
+					          ///æ¸…ç©ºè·ç¦»æ•°ç»„
+							dis_buff[temp].dis=DIS_MAX_VALUE;
+						}
+					}
+                }
+                sum=0;
+                for(i=0;i<23;i++)
+                {
+                    sum+=cmd_data_buff[i];
+                }   
+                cmd_data_buff[23]=sum;
+                if(sum==0xEF)
+                {
+                    cmd_data_buff[22]++;
+                    cmd_data_buff[23]++;
+                } 
+                angle++;
+#if 1           
+                inQueue(cmd_data_buff);
+                break;
+#else        
+                while(!__HAL_UART_GET_FLAG(&huart1,UART_FLAG_TC)){;}       
+                HAL_UART_Transmit_DMA(&huart1,p,24); 
+#endif                    
+            }
+        }
+        else
+        {
+            angle++;
+        }    
+    }
+    if(angle>360)      //å·²å‘é€å®Œæœ€åä¸€å¸§
+    {
+        angle=1;
+//        i_static=0;
+        
+    }
+    return 1;
+}   
+
+void EnableSendData(void)
+{
+    send_flag=1;
+}
+    
+void DisableSendData(void)
+{
+    send_flag=0;
+}    
+
+void SendDistanceData(void)
+{   
+    if(!isEmpty())
+    {
+        //while(!__HAL_UART_GET_FLAG(&huart1,UART_FLAG_TC)){;}
+        if(__HAL_UART_GET_FLAG(&huart1,UART_FLAG_TC))
+        {
+            outQueue(out_buff);
+            HAL_UART_Transmit_DMA(&huart1,out_buff,BUFF_MAX_LENGTH); 
+        }    
+    }
+}    
+
+//é˜Ÿåˆ—ç®¡ç†
+QueueStatus init_queue(void)  
+{  
+    //åˆå§‹åŒ–è¯»å†™æŒ‡é’ˆ  
+    queue.wp = 0;
+    queue.rp = 0;  
+    //åˆå§‹åŒ–é˜Ÿåˆ—ä¸­å…ƒç´ ä¸ªæ•°  
+    queue.queueCnt = 0; // conuter  
+    
+    return QueueOK;
+}  
+
+static uint32_t isFull(void)  
+{  
+    return (queue.queueCnt == BUFF_MAX_SIZE ) ? 1 : 0;  
+}  
+
+static uint32_t isEmpty(void)  
+{  
+    return (0==queue.queueCnt)? 1 : 0;  
+} 
+
+static QueueStatus inQueue(uint8_t buff[])  
+{  
+    uint32_t i;
+    if (1==isFull())  
+    {  
+        return QueueFull;  
+    }  
+    else   
+    {  
+        //ä¿å­˜æ•°æ®
+        for(i=0;i<BUFF_MAX_LENGTH;i++)
+        {
+            queue_data_buff[queue.wp][i]=buff[i];
+        }
+        //å›è½¬  
+        if (++(queue.wp) == BUFF_MAX_SIZE)  
+        {  
+            queue.wp = 0;  
+        }  
+        //å…ƒç´ ä¸ªæ•°åŠ 1  
+        (queue.queueCnt)++;  
+    }     
+    return QueueOK;  
+} 
+
+static QueueStatus outQueue(uint8_t buff[])  
+{  
+    uint32_t i;
+    if (1==isEmpty())  
+    {  
+        return QueueEmpty;  
+    }  
+    else 
+    {  
+        //è¯»å‡ºæ•°æ®
+        for(i=0;i<BUFF_MAX_LENGTH;i++)
+        {
+            buff[i]=queue_data_buff[queue.rp][i];
+        }
+        //å›è½¬  
+        if (++(queue.rp) == BUFF_MAX_SIZE)  
+        {  
+            queue.rp = 0;  
+        }
+        //å…ƒç´ ä¸ªæ•°å‡1 
+        (queue.queueCnt)--;
+    }     
+    return QueueOK;  
+}  
+
+//å¯åŠ¨ADC
+void ADC1_Start(void)
+{
+//    static uint8_t adc_cycle_cnt=0;
+//    
+//    //6ä¸ªå‘¨æœŸå¯åŠ¨ä¸€æ¬¡
+//    adc_cycle_cnt++;      
+//    if(adc_cycle_cnt==7)    
+//    {
+//        adc_cycle_cnt=0;
+//    }
+//    if(adc_cycle_cnt==0)  
+//    {
+//            
+////      HAL_ADC_Stop_DMA(&hadc1); 
+////      HAL_ADC_Start_DMA(&hadc1,adc_converted_value,ADC_DMA_BUFF_LEN);    //å¯åŠ¨å‡½æ•°     //IF_MAXæ˜¯4ä¸ªå‘¨æœŸ  
+//      hadc1.Instance->CR2 |= ADC_CR2_CONT;   
+//      hadc1.Instance->CR2 |= (uint32_t)ADC_CR2_SWSTART; 
+//        //HAL_ADC_Start(&hadc1);
+
+//            
+//      
+//    }    
+}  
+#define TEMP_LOOP   (3000)
+extern volatile uint8_t FullCircle_flag,flag_step_dp;
+uint16_t temp_user_10;
+
+extern uint16_t temp_out_value; 
+int32_t  a_x=167,b_x=19172,c_x=22858;
+int32_t  a1_x=167,b1_x=19172,c1_x=22858;
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	:æ¨¡å¼00 è‡ªåŠ¨è°ƒèŠ‚DPå€¼  æ¨¡å¼0x88æ ¹æ®æ¸©åº¦è°ƒèŠ‚DP
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+int32_t Read_ADC_Calculate_Average_Value(void)
+{
+	uint16_t *psrc_buff=NULL;
+	int32_t *pdest_buff;	
+	uint16_t i=0;	
+	int32_t sum=0;
+		
+	if(adc_converted_value_num==0)
+	{
+		psrc_buff=(uint16_t *)adc_converted_value_0.dat;
+		adc_converted_value_num=1;
+	}
+	else
+	{
+		psrc_buff=(uint16_t *)adc_converted_value_1.dat;
+		adc_converted_value_num=0;
+	}    
+	pdest_buff=temp_buff;
+	for(i=0;i<TEMP_SIGNAL_MAX;i++)
+	{
+		*pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
+	}
+	//æ±‚å¹³å‡
+	for(i=100;i<TEMP_SIGNAL_MAX;i++)
+	{
+		sum+=temp_buff[i];
+	}
+	sum= sum/(TEMP_SIGNAL_MAX-100); 
+ 	return sum;
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	:é€šè¿‡æŸ¥è¡¨çš„æ–¹å¼æ¢ç®—æˆå®é™…æ¸©åº¦
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+int32_t Query_Table_Calculate_Temperature(uint16_t vol_ad)
+{
+	uint16_t i=0;
+	DOT dot0,dot1,dot2;	
+	int32_t calculate_temperature;
+	/*åˆ¤æ–­è¾“å‡ºå‚æ•°èŒƒå›´*/ 
+	if(vol_ad>=temp_ad[0])
+	{
+			calculate_temperature=-1500;
+	}    
+	else if(vol_ad<=temp_ad[99])
+	{
+			calculate_temperature=8400;
+	}
+	else
+	{    
+		for(i=0;i<99;i++)
+		{
+			/*æŸ¥è¡¨è®¡ç®—æ•°æ®*/ 	
+			if((vol_ad<=temp_ad[i])&&(vol_ad>temp_ad[i+1]))
+			{
+				 
+				dot1.x=temp_ad[i];
+				dot1.y=((int16_t)(i)+(-15))*100;
+				dot2.x=temp_ad[i+1];
+				dot2.y=((int16_t)(i+1)+(-15))*100;
+				dot0.x=vol_ad;
+				dot0.y=LineInsert(dot1,dot2,dot0.x);
+				calculate_temperature=dot0.y;
+				break;                        
+			}    
+		}
+	}
+	return 	calculate_temperature;
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	:è‡ªåŠ¨è°ƒèŠ‚DP ä¸ŠæŠ¥æ•°æ® å¯»æ‰¾ç³»æ•°æ¨¡å¼
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+void Adjust_DP_Seek_Coefficient(void)
+{
+	int16_t  delta_dp=0,DPset0=0;	
+	static int8_t dp_cnt=0;	
+	int16_t dp=0;
+	/*ä¸¤æ®µå†…éƒ¨è°ƒDPç›´çº¿*/
+	if(t_realtime<(t_25*100))
+	{    
+		delta_dp=(t_realtime-(t_25*100))*t_apd_vol_low/10000/100;  
+	}    
+	else
+	{
+		delta_dp=(t_realtime-(t_25*100))*t_apd_vol_high/10000/100; 
+	}    
+	DPset0= (int16_t)dp_value+delta_dp;
+	/*æ¯5åœˆ  1ç§’è¿›å…¥ä¸€æ¬¡è°ƒèŠ‚è®¡ç®—  é™æ€æ¨¡å¼ä¸ç”¨åˆ¤æ–­åœˆæ•°*/
+	if((FullCircle_flag>=5)||(work_mode==MODE_STATIC_SET_DP))
+	{
+		FullCircle_flag=0;
+		/*è°ƒèŠ‚10æ¬¡å è¿›å…¥10ç§’çš„ä¿æŒé˜¶æ®µ*/
+		dp_cnt++;
+		if(dp_cnt>=11)  //10S é˜¶æ¢¯ 
+		{
+			dp_cnt=0;
+			flag_step_dp=1;
+		}
+		/*è°ƒèŠ‚DP æ¯æ¬¡åŠ 3*/
+		dp = DPset0 + (dp_cnt -5)*3;		
+		if(dp<=0)
+			dp=0;		
+		DP_num = dp;
+		dp_out_value=DP_num;
+		/*åˆ¤æ–­DPè°ƒèŠ‚ä½¿èƒ½   è°ƒèŠ‚DPçš„PWMæ§åˆ¶*/
+		if(temp_cali_enable)
+		{
+			if((dp>=1)&&(dp<=900))
+			{
+					TIM5_PWM_SetDuty(dp);     
+			}
+		}
+	}
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	:è‡ªåŠ¨è°ƒèŠ‚DP ä¸ŠæŠ¥æ•°æ® å¯»æ‰¾ç³»æ•°æ¨¡å¼
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+void Adjust_DP_Static(void)
+{
+	int16_t  delta_dp=0,DPset0=0;	
+	static int8_t dp_cnt=0;	
+	int16_t dp=0;
+	/*ä¸¤æ®µå†…éƒ¨è°ƒDPç›´çº¿*/
+	if(t_realtime<(t_25*100))
+	{    
+		delta_dp=(t_realtime-(t_25*100))*t_apd_vol_low/10000/100;  
+	}    
+	else
+	{
+		delta_dp=(t_realtime-(t_25*100))*t_apd_vol_high/10000/100; 
+	}    
+	DPset0= (int16_t)dp_value+delta_dp;
+	/*æ¯5åœˆ  1ç§’è¿›å…¥ä¸€æ¬¡è°ƒèŠ‚è®¡ç®—  é™æ€æ¨¡å¼ä¸ç”¨åˆ¤æ–­åœˆæ•°*/
+	if((FullCircle_flag>=5)||(work_mode==MODE_STATIC_SET_DP))
+	{
+		FullCircle_flag=0;
+		/*è°ƒèŠ‚10æ¬¡å è¿›å…¥æŒé˜¶æ®µ*/
+
+		if(dp_cnt<=10)
+		{
+			/*è°ƒèŠ‚DP æ¯æ¬¡åŠ 3*/
+			dp = DPset0 + (dp_cnt -5)*3;
+		}	
+		else
+			dp = DPset0-15 ;
+		dp_cnt++;
+		/*è°ƒèŠ‚10æ¬¡ ä¿æŒ3æ¬¡*/
+		if(dp_cnt>12)
+			dp_cnt=0;
+		
+		if(dp<=0)
+			dp=0;		
+		DP_num = dp;
+		dp_out_value=DP_num;
+		/*åˆ¤æ–­DPè°ƒèŠ‚ä½¿èƒ½   è°ƒèŠ‚DPçš„PWMæ§åˆ¶*/
+		if(temp_cali_enable)
+		{
+			if((dp>=1)&&(dp<=900))
+			{
+					TIM5_PWM_SetDuty(dp);     
+			}
+		}
+	}
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	:å¸¦å…¥abc  a1b1c1è®¡ç®—DP éªŒè¯ç³»æ•°
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+void Verification_Coefficient(void)
+{
+	float temp=0.0,a=0.0,b=0.0,c=0.0;	
+	uint16_t dp=0;
+	if(t_realtime <= TEMP_LOOP)
+	{							
+		temp = (float)(t_realtime)/100;	
+		a = (float)(a_x)/10000;
+		b = (float)(b_x)/10000;
+		c = (float)(c_x)/100;		
+		dp = (uint16_t)(a*temp*temp + b*temp + c);
+	}
+	else
+	{		
+		temp = (float)(t_realtime)/100;	
+		a = (float)(a1_x)/10000;
+		b = (float)(b1_x)/10000;
+		c = (float)(c1_x)/100;		
+		dp = (uint16_t)(a*temp*temp + b*temp + c);			
+	}		
+	DP_num = dp;	
+	dp_out_value=DP_num;	
+	if(temp_cali_enable)
+	{
+		if((dp >= 1)&&(dp <= 900))
+		{
+				TIM5_PWM_SetDuty(dp);     
+		}
+	}
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	: ç”Ÿäº§æ¸©å¾ªå·¥è‰ºæ§åˆ¶ ä¸åŒæ¨¡å¼è¿›å…¥ä¸åŒå·¥ä½œçŠ¶æ€
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+void Produce_Temperature_Control(void)
+{
+	/*è¿›å…¥è°ƒèŠ‚DPæ‰¾ç³»æ•°æ¨¡å¼æˆ–è€…éªŒè¯ç³»æ•°*/
+	switch(work_mode)
+	{
+		/*æ‰¾ç³»æ•°åŠ¨æ€æ¨¡å¼ */
+		case MODE_NORMAL:
+		case MODE_SAVE_DATA:	
+			Adjust_DP_Seek_Coefficient();
+		break;	
+		/*æ‰¾ç³»æ•°é™æ€æ¨¡å¼*/		
+		case MODE_STATIC_SET_DP:
+			Adjust_DP_Static();
+		break;
+		/*éªŒè¯ç³»æ•°åŠ¨æ€æ¨¡å¼ å’ŒéªŒè¯ç³»æ•°é™æ€æ¨¡å¼*/
+		case MODE_VERIFICATION:
+		case MODE_STATIC_ABC:
+			Verification_Coefficient();
+		break;			
+		default:
+		break;		
+	}
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	:æ¨¡å¼00 è‡ªåŠ¨è°ƒèŠ‚DPå€¼  æ¨¡å¼0x88æ ¹æ®æ¸©åº¦è°ƒèŠ‚DP
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+void VAPD_Temperature_Adjust(void)
+{
+	static int32_t  t_realtime_last=-2000;
+	/*åˆ¤æ–­DMAæ¸©åº¦æ•°æ®é‡‡æ ·å®Œæˆ*/
+    if(temp_flag)
+    {
+        temp_flag=0;
+        /*åœæ­¢ADC*/ 
+        HAL_ADC_Stop(&hadc1);           
+		/*é€šé“æ¢å¤æˆé‡‡é›†ä¿¡å·çš„é€šé“*/ 
+        ADC1_SetChannel(SIGNAL_CHN);           
+        /*è¯»å–ADCå€¼ å¹¶è®¡ç®—å¹³å±€å€¼*/    
+		apd_therm_vol_ad=Read_ADC_Calculate_Average_Value();
+		/*é€šè¿‡æŸ¥è¡¨çš„æ–¹å¼æ¢ç®—æˆå®é™…æ¸©åº¦ */  
+		t_realtime=Query_Table_Calculate_Temperature(apd_therm_vol_ad); 		
+        /*åˆ¤æ–­æ¸©åº¦å˜åŒ– ä¸èƒ½è¶…è¿‡2â„ƒ */ 
+        if(t_realtime_last>(-2000))
+        {
+            if(fabs((float)(t_realtime-t_realtime_last))>100)
+            {
+                t_realtime=t_realtime_last;
+            }
+            else
+            {
+                t_realtime=(t_realtime+t_realtime_last)>>1;
+            }    
+        } 
+				
+		/*å°†æ¸©åº¦å€¼å¤åˆ¶åˆ°å…¶ä»–æ¸©åº¦å˜é‡ä¸­*/		
+        t_realtime_last=t_realtime; 	
+        temp_out_value=t_realtime;
+		temp_num = (int8_t)(t_realtime/100);
+		temp_user_10=(int16_t)(t_realtime);
+		/*æ¸©å¾ªæ§åˆ¶*/
+		Produce_Temperature_Control();	   
+    } 
+} 
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	:æ¨¡å¼00 è‡ªåŠ¨è°ƒèŠ‚DPå€¼  æ¨¡å¼0x88æ ¹æ®æ¸©åº¦è°ƒèŠ‚DP
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+int32_t Static_Read_ADC_Calculate_Average_Value(void)
+{
+	uint16_t *psrc_buff=NULL;
+	int32_t *pdest_buff;	
+	uint16_t i=0;	
+	int32_t sum=0;
+		
+
+	psrc_buff=(uint16_t *)adc_converted_value_1.dat; 
+	pdest_buff=temp_buff;
+	for(i=0;i<TEMP_SIGNAL_MAX;i++)
+	{
+		*pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
+	}
+	//æ±‚å¹³å‡
+	for(i=100;i<TEMP_SIGNAL_MAX;i++)
+	{
+		sum+=temp_buff[i];
+	}
+	sum= sum/(TEMP_SIGNAL_MAX-100);  
+    return  sum;	
+}
+/**
+*********************************************************************************************************
+* @åç§°	: 
+* @æè¿°	:é™æ€ä¸ŠæŠ¥DPå’Œè·ç¦»
+* @å‚æ•°	: 
+* @è¿”å›	: 
+*********************************************************************************************************
+**/
+void VAPD_Temp_Static(void)
+{
+	static int32_t  t_realtime_last=-2000;
+	/*åˆ¤æ–­DMAæ¸©åº¦æ•°æ®é‡‡æ ·å®Œæˆ*/
+    if(temp_flag)
+    {
+        temp_flag=0;
+        /*åœæ­¢ADC*/ 
+        HAL_ADC_Stop(&hadc1);           
+		/*é€šé“æ¢å¤æˆé‡‡é›†ä¿¡å·çš„é€šé“*/ 
+        ADC1_SetChannel(SIGNAL_CHN);           
+        /*è¯»å–ADCå€¼ å¹¶è®¡ç®—å¹³å±€å€¼               é™æ€*/    
+		apd_therm_vol_ad=Static_Read_ADC_Calculate_Average_Value();
+		/*é€šè¿‡æŸ¥è¡¨çš„æ–¹å¼æ¢ç®—æˆå®é™…æ¸©åº¦ */  
+		t_realtime=Query_Table_Calculate_Temperature(apd_therm_vol_ad);         
+        /*åˆ¤æ–­æ¸©åº¦å˜åŒ– ä¸èƒ½è¶…è¿‡2â„ƒ */ 
+        if(t_realtime_last>(-2000))
+        {
+            if(fabs((float)(t_realtime-t_realtime_last))>100)
+            {
+                t_realtime=t_realtime_last;
+            }
+            else
+            {
+                t_realtime=(t_realtime+t_realtime_last)>>1;
+            }    
+        }    
+        t_realtime_last=t_realtime; 
+		/*å°†æ¸©åº¦å€¼å¤åˆ¶åˆ°å…¶ä»–æ¸©åº¦å˜é‡ä¸­*/
+        temp_out_value=t_realtime;
+  		temp_num = (int8_t)(t_realtime/100);
+		temp_user_10=(int16_t)(t_realtime);
+		/*æ¸©å¾ªæ§åˆ¶*/
+		Produce_Temperature_Control();	        
+    } 
+}
+
+/*-------------------------------------------*/
+//æ¸©åº¦æ ¡å‡†éƒ¨åˆ†å‡½æ•°
+void Temp_senddata(void)
+{
+
+    uint8_t *p=cmd_data_buff;
+
+
+    *p++=0xef;
+    *p++=0xef;
+    //ç»„å¸§ï¼Œå‘é€
+    *p++=apd_therm_vol_ad>>8;   
+    *p++=apd_therm_vol_ad;
+    
+    *p++=distance_realtime>>8;   //è·ç¦»
+    *p++=distance_realtime;
+    
+    *p++=intensity_realtime;
+
+    while(!__HAL_UART_GET_FLAG(&huart1,UART_FLAG_TC)){;}       
+    HAL_UART_Transmit_DMA(&huart1,cmd_data_buff,7); 
+} 
+
+uint16_t distance_out_value;
+uint16_t temp_out_value; 
+void Temp_GetPosition(void)
+{
+    uint32_t i=0;
+    uint16_t delta=0,direct_current=0;
+
+ 
+    
+    uint16_t *psrc_buff=NULL;
+    int32_t *pdest_buff;    
+    
+    if(adc_cplt_flag)
+    {
+        adc_cplt_flag=0;
+        
+
+            psrc_buff=(uint16_t *)adc_converted_value_0.dat;
+
+  
+        pdest_buff=adc_buff_add;
+        //é‡‡æ ·ç»“æŸæ˜¯é«˜ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯ä¸Šå‡æ²¿ï¼Œæ­¤æ—¶æ•°æ®æœ‰æ•ˆã€‚
+        //é‡‡æ ·ç»“æŸæ˜¯ä½ç”µå¹³ï¼Œæ„å‘³ç€è§¦å‘æ˜¯â€œä¸‹é™æ²¿â€ï¼Œæ­¤æ—¶æ•°æ®æ— æ•ˆã€‚
+        if(adc_valid_flag)
+        {    
+            for(i=0;i<IF_MAX;i++)
+            {
+                *pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
+            }
+        }
+   
+        distance_realtime=Calculate_Position(IF_MAX,adc_buff_add,&delta,&direct_current);
+		/*è·ç¦»ä¸ºæœ‰æ•ˆå€¼æ—¶ é‡å¯è®¡æ•°å™¨æ¸…é›¶*/
+		if(distance_realtime>0)
+			restart_num=0;
+			
+        intensity_realtime=delta;
+		intensity_out_value=intensity_realtime;
+		distance_out_value=distance_realtime;
+		
+		/*  ä¿å­˜æ¸©åº¦ç³»æ•°  é™æ€æµ‹è¯• */
+		//Save_Temperature_Coefficient_Handle(distance_realtime);
+    }   
+}
+
+void Temp_GetTemp(void)
+{
+    uint32_t i=0;
+    int32_t sum=0;
+    uint16_t *psrc_buff=NULL;
+    int32_t *pdest_buff;  
+    
+
+   
+    if(temp_flag)
+    {
+        temp_flag=0;
+        
+
+            psrc_buff=(uint16_t *)adc_converted_value_1.dat;
+  
+  
+        pdest_buff=temp_buff;
+        for(i=0;i<TEMP_SIGNAL_MAX;i++)
+        {
+            *pdest_buff++=*psrc_buff++;    //å¤åˆ¶æ•°æ®
+        }
+        
+        for(i=0;i<TEMP_SIGNAL_MAX;i++)
+        {
+            sum+=temp_buff[i];
+        }
+        sum= sum/TEMP_SIGNAL_MAX;
+        apd_therm_vol_ad=sum;
+              
+    } 
+}  
+
+
+/*-------------------------------------------*/
+
+//è®¾ç½®APDåå‹ï¼Œå³PWM å ç©ºæ¯”
+void VPAD_SetPWMDuty(uint32_t duty)
+{
+    TIM2_PWM_SetDuty(duty);
+}    
+
+
+
+
+
+//GPIOA4ç”¨äºæµ‹è¯•åˆ·æ–°é€Ÿåº¦
+void GPIOA4_Blink(void)
+{
+    static uint8_t flag;
+    flag=~flag;
+    if(flag)
+        {
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+        }
+        else
+        {
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+        }  
+
+}
+
+/*************************************************************************************
+* å‡½æ•°åç§°: LineInsert
+*
+* åŠŸèƒ½æè¿°: çº¿æ€§æ’å€¼,2ç‚¹ç”»çº¿ï¼Œæ ¹æ®ç¬¬3ç‚¹Xè®¡ç®—Y
+*				             
+* å…¥å£å‚æ•°:  dot1ï¼Œç¬¬ä¸€ç‚¹ï¼›		æ³¨æ„ï¼šä¸ºé¿å…ç¬¬ä¸€ç‚¹å¿…é¡»æ˜¯å·¦è¾¹çš„ç‚¹
+*			 dot2ï¼Œç¬¬äºŒç‚¹ï¼›
+*			 xï¼Œ   å¾…è®¡ç®—ç‚¹çš„Xå€¼	
+* å‡ºå£å‚æ•°:  
+*
+************************************************************************************/
+int32_t LineInsert(DOT dot1, DOT dot2,int32_t x)
+{
+	float a,b;
+	a=(dot2.y-dot1.y)/(dot2.x-dot1.x);
+	b=dot1.y-a*dot1.x;
+	return(int32_t)(a*x+b);
+}
+uint8_t static_data_buff[50]; 
+void Static_senddata(void)
+{
+    uint32_t i=0;
+    uint8_t *p=static_data_buff;
+    uint32_t sum=0;
+
+	*p++=0xef;
+	*p++=0xef;
+	//ç»„å¸§ï¼Œå‘é€
+	*p++=0;        //é€Ÿåº¦
+	*p++=0; 
+	*p++=0;;            //è§’åº¦  
 
 	*p++ =  distance_out_value>>8;
 	*p++ =  distance_out_value;
